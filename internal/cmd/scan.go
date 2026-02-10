@@ -22,94 +22,92 @@ var scanCmd = &cobra.Command{
 	Use:   "scan",
 	Short: "Find comments without deleting them",
 	Run: func(cmd *cobra.Command, args []string) {
+		runScan()
+	},
+}
 
-		var files []string
-		var err error
+func runScan() {
+	var files []string
+	var err error
 
-		if scanPath != "" {
-			// User specified a path (File or Directory?)
-			info, err := os.Stat(scanPath)
+	if scanPath != "" {
+		info, err := os.Stat(scanPath)
+		if err != nil {
+			fmt.Printf("Error finding path: %v\n", err)
+			return
+		}
+
+		if info.IsDir() {
+			files, err = findAllFiles(scanPath)
+		} else {
+			files = []string{scanPath}
+		}
+	} else if scanAll {
+		files, err = findAllFiles(".")
+	} else {
+		files, err = git.GetChangedFiles()
+	}
+
+	if err != nil {
+		fmt.Printf("Error listing files: %v\n", err)
+		return
+	}
+
+	if len(files) == 0 {
+		fmt.Println("No files to scan.")
+		return
+	}
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+
+	totalComments := 0
+	filesWithComments := 0
+	for _, file := range files {
+		wg.Add(1)
+
+		go func(file string) {
+			defer wg.Done()
+			commentScanner, err := scanner.GetScanner(file)
 			if err != nil {
-				fmt.Printf("Error finding path: %v\n", err)
 				return
 			}
 
-			if info.IsDir() {
-				// If directory, walk it to find files
-				files, err = findAllFiles(scanPath)
-			} else {
-				// Single file
-				files = []string{scanPath}
-			}
-		} else if scanAll {
-			// Walk current directory
-			files, err = findAllFiles(".")
-		} else {
-			// Git Mode (Auto-discovery)
-			files, err = git.GetChangedFiles()
-		}
-
-		if err != nil {
-			fmt.Printf("Error listing files: %v\n", err)
-			return
-		}
-
-		if len(files) == 0 {
-			fmt.Println("No files to scan.")
-			return
-		}
-
-		var wg sync.WaitGroup
-		var mu sync.Mutex
-
-		totalComments := 0
-		filesWithComments := 0
-		for _, file := range files {
-			wg.Add(1)
-
-			go func(file string) {
-				defer wg.Done()
-				scanner, err := scanner.GetScanner(file)
-				if err != nil {
-					return
-				}
-
-				content, err := os.ReadFile(file)
-				if err != nil {
-					mu.Lock()
-					fmt.Printf("⚠️  Skipping %s: %v\n", file, err)
-					mu.Unlock()
-					return
-				}
-
-				comments, err := scanner.Scan(content)
-				if err != nil {
-					mu.Lock()
-					fmt.Printf("⚠️  Parse error scanning %s: %v\n", file, err)
-					mu.Unlock()
-					return
-				}
-
-				count := len(comments)
-				if count == 0 {
-					return
-				}
-
+			content, err := os.ReadFile(file)
+			if err != nil {
 				mu.Lock()
-				totalComments += count
-				filesWithComments++
-				fmt.Printf("Found %d comments in %s\n", count, file)
-				if verbose {
-					for _, c := range comments {
-						fmt.Printf("\t- Line %d: %s\n", c.Line, strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "))
-					}
-				}
+				fmt.Printf("⚠️  Skipping %s: %v\n", file, err)
 				mu.Unlock()
-			}(file)
-		}
-		wg.Wait()
-		fmt.Printf("Found %d comments in %d files\n", totalComments, filesWithComments)
-	},
+				return
+			}
+
+			comments, err := commentScanner.Scan(content)
+			if err != nil {
+				mu.Lock()
+				fmt.Printf("⚠️  Parse error scanning %s: %v\n", file, err)
+				mu.Unlock()
+				return
+			}
+
+			count := len(comments)
+			if count == 0 {
+				return
+			}
+
+			mu.Lock()
+			totalComments += count
+			filesWithComments++
+			fmt.Printf("Found %d comments in %s\n", count, file)
+			if verbose {
+				for _, c := range comments {
+					fmt.Printf("\t- Line %d: %s\n", c.Line, strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "))
+				}
+			}
+			mu.Unlock()
+		}(file)
+	}
+	wg.Wait()
+	fmt.Printf("Found %d comments in %d files\n", totalComments, filesWithComments)
 }
 
 func findAllFiles(root string) ([]string, error) {
