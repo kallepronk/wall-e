@@ -1,0 +1,12 @@
+/*
+Copyright © 2026 NAME HERE <EMAIL ADDRESS>
+*/
+package main
+
+import (
+	"python-comment-remover/internal/cmd"
+)
+
+func main() {
+	cmd.Execute()
+}
