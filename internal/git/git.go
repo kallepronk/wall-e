@@ -35,7 +35,6 @@ func GetChangedFiles() ([]string, error) {
 
 	for filePath, fileStatus := range status {
 
-		// Skip deleted files
 		if fileStatus.Staging == git.Deleted || fileStatus.Worktree == git.Deleted {
 			continue
 		}
