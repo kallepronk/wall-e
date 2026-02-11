@@ -301,10 +301,11 @@ func (g *GitScanner) getWorkingTreeChanges(opts ScanOptions) ([]File, error) {
 		}
 
 		// Handle modified files
-		if fileStatus.Staging == git.Modified || fileStatus.Worktree == git.Modified {
-			file.Status = StatusModified
-		} else if fileStatus.Staging == git.Added {
+		// Check Staging.Added first (takes precedence over Worktree.Modified for newly added files)
+		if fileStatus.Staging == git.Added {
 			file.Status = StatusAdded
+		} else if fileStatus.Staging == git.Modified || fileStatus.Worktree == git.Modified {
+			file.Status = StatusModified
 		} else {
 			continue
 		}
