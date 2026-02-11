@@ -1,7 +1,7 @@
 package main
 
 import (
-	"python-comment-remover/internal/cmd"
+	"walle/internal/cmd"
 )
 
 func main() {

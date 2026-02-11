@@ -3,9 +3,9 @@ package remover
 import (
 	"fmt"
 	"os"
-	"python-comment-remover/internal/scanner"
 	"sort"
 	"unicode"
+	"walle/internal/scanner"
 )
 
 func RemoveComments(filePath string, comments []scanner.Comment) error {

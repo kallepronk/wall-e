@@ -2,8 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"python-comment-remover/internal/scanner"
 	"strings"
+	"walle/internal/scanner"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

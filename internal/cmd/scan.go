@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"python-comment-remover/internal/git"
-	"python-comment-remover/internal/scanner"
 	"strings"
 	"sync"
+	"walle/internal/git"
+	"walle/internal/scanner"
 
 	"github.com/spf13/cobra"
 )

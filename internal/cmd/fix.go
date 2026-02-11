@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"python-comment-remover/internal/git"
-	"python-comment-remover/internal/remover"
-	"python-comment-remover/internal/scanner"
 	"sync"
+	"walle/internal/git"
+	"walle/internal/remover"
+	"walle/internal/scanner"
 
 	"github.com/spf13/cobra"
 )

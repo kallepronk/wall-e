@@ -1,4 +1,4 @@
-module python-comment-remover
+module walle
 
 go 1.25
 
