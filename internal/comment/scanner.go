@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"walle/internal/source"
 
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/golang"
@@ -13,7 +14,7 @@ import (
 )
 
 type Scanner interface {
-	Scan(content []byte) ([]Comment, error)
+	Scan(file source.File) ([]Comment, error)
 }
 
 func GetScanner(filename string) (Scanner, error) {
@@ -38,28 +39,29 @@ type TreeSitterScanner struct {
 	Language *sitter.Language
 }
 
-func (s *TreeSitterScanner) Scan(content []byte) ([]Comment, error) {
+func (s *TreeSitterScanner) Scan(file source.File) ([]Comment, error) {
 	parser := sitter.NewParser()
 	parser.SetLanguage(s.Language)
-
-	tree, err := parser.ParseCtx(context.Background(), nil, content)
-	if err != nil {
-		return nil, fmt.Errorf("invalid python query: %w", err)
-	}
-	defer tree.Close()
 
 	queryMessage := `(comment) @comment`
 	query, err := sitter.NewQuery([]byte(queryMessage), s.Language)
 	if err != nil {
-		return nil, fmt.Errorf("invalid python query: %w", err)
+		return nil, fmt.Errorf("invalid query: %w", err)
 	}
 	defer query.Close()
+
+	tree, err := parser.ParseCtx(context.Background(), nil, file.Content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse file %s: %w", file.Path, err)
+	}
+	defer tree.Close()
 
 	queryCursor := sitter.NewQueryCursor()
 	defer queryCursor.Close()
 	queryCursor.Exec(query, tree.RootNode())
 
 	var comments []Comment
+
 	for {
 		match, ok := queryCursor.NextMatch()
 		if !ok {
@@ -68,17 +70,38 @@ func (s *TreeSitterScanner) Scan(content []byte) ([]Comment, error) {
 
 		for _, capture := range match.Captures {
 			node := capture.Node
+			line := int(node.StartPoint().Row) + 1
 
-			text := node.Content(content)
-
-			comments = append(comments, Comment{
-				Text:      text,
-				Line:      int(node.StartPoint().Row),
-				StartByte: node.StartByte(),
-				EndByte:   node.EndByte(),
-			})
+			if file.Status == source.StatusAdded || file.Status == source.StatusUntracked {
+				comments = append(comments, Comment{
+					FilePath:  file.Path,
+					Text:      node.Content(file.Content),
+					Line:      line,
+					StartByte: node.StartByte(),
+					EndByte:   node.EndByte(),
+				})
+			} else if isLineInDiffRanges(line, file.DiffRanges) {
+				comments = append(comments, Comment{
+					FilePath:  file.Path,
+					Text:      node.Content(file.Content),
+					Line:      line,
+					StartByte: node.StartByte(),
+					EndByte:   node.EndByte(),
+				})
+			}
 		}
-
 	}
+
 	return comments, nil
 }
+
+func isLineInDiffRanges(line int, ranges []LineRange) bool {
+	for _, r := range ranges {
+		if line >= r.Start && line <= r.End {
+			return true
+		}
+	}
+	return false
+}
+
+type LineRange = source.LineRange
