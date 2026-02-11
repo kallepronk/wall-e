@@ -1,14 +1,13 @@
-package remover
+package comment
 
 import (
 	"fmt"
 	"os"
 	"sort"
 	"unicode"
-	"walle/internal/scanner"
 )
 
-func RemoveComments(filePath string, comments []scanner.Comment) error {
+func RemoveComments(filePath string, comments []Comment) error {
 	if len(comments) == 0 {
 		return nil
 	}

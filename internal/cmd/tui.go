@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
-	"walle/internal/scanner"
+	"walle/internal/comment"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -40,7 +40,7 @@ var (
 
 type TaskItem struct {
 	File     string
-	Comment  scanner.Comment
+	Comment  comment.Comment
 	Selected bool
 }
 
@@ -51,7 +51,7 @@ type Model struct {
 	done     bool
 }
 
-func NewModel(tasks map[string][]scanner.Comment) Model {
+func NewModel(tasks map[string][]comment.Comment) Model {
 	var items []TaskItem
 	for file, comments := range tasks {
 		for _, comment := range comments {
@@ -166,8 +166,8 @@ func (m Model) View() string {
 	return b.String()
 }
 
-func (m Model) GetSelectedTasks() map[string][]scanner.Comment {
-	result := make(map[string][]scanner.Comment)
+func (m Model) GetSelectedTasks() map[string][]comment.Comment {
+	result := make(map[string][]comment.Comment)
 	for _, item := range m.items {
 		if item.Selected {
 			result[item.File] = append(result[item.File], item.Comment)
@@ -180,7 +180,7 @@ func (m Model) WasCancelled() bool {
 	return m.quitting
 }
 
-func RunTUI(tasks map[string][]scanner.Comment) (map[string][]scanner.Comment, bool) {
+func RunTUI(tasks map[string][]comment.Comment) (map[string][]comment.Comment, bool) {
 	model := NewModel(tasks)
 	p := tea.NewProgram(model)
 

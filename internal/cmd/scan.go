@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"walle/internal/comment"
 	"walle/internal/git"
-	"walle/internal/scanner"
 
 	"github.com/spf13/cobra"
 )
@@ -68,7 +68,7 @@ func runScan() {
 
 		go func(file string) {
 			defer wg.Done()
-			commentScanner, err := scanner.GetScanner(file)
+			commentScanner, err := comment.GetScanner(file)
 			if err != nil {
 				return
 			}

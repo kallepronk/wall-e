@@ -1,4 +1,4 @@
-package scanner
+package comment
 
 type Comment struct {
 	Text      string

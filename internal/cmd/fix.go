@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"walle/internal/comment"
 	"walle/internal/git"
-	"walle/internal/remover"
-	"walle/internal/scanner"
 
 	"github.com/spf13/cobra"
 )
@@ -27,7 +26,7 @@ var fixCmd = &cobra.Command{
 }
 
 func runFix() {
-	tasks := make(map[string][]scanner.Comment)
+	tasks := make(map[string][]comment.Comment)
 
 	var files []string
 	var err error
@@ -67,7 +66,7 @@ func runFix() {
 		wg.Add(1)
 		go func(file string) {
 			defer wg.Done()
-			commentScanner, err := scanner.GetScanner(file)
+			commentScanner, err := comment.GetScanner(file)
 			if err != nil {
 				return
 			}
@@ -133,7 +132,7 @@ func runFix() {
 
 	removedCount := 0
 	for file, comments := range tasks {
-		err := remover.RemoveComments(file, comments)
+		err := comment.RemoveComments(file, comments)
 		if err != nil {
 			fmt.Printf("⚠️  Error deleting comments in %s: %v\n", file, err)
 		} else {

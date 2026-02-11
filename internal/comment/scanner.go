@@ -1,11 +1,38 @@
-package scanner
+package comment
 
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
+	"github.com/smacker/go-tree-sitter/golang"
+	"github.com/smacker/go-tree-sitter/python"
+	"github.com/smacker/go-tree-sitter/typescript/typescript"
 )
+
+type Scanner interface {
+	Scan(content []byte) ([]Comment, error)
+}
+
+func GetScanner(filename string) (Scanner, error) {
+	ext := strings.ToLower(filepath.Ext(filename))
+
+	switch ext {
+	case ".py":
+		return &TreeSitterScanner{Language: python.GetLanguage()}, nil
+	case ".ts":
+		return &TreeSitterScanner{Language: typescript.GetLanguage()}, nil
+	case ".tsx":
+		return &TreeSitterScanner{Language: typescript.GetLanguage()}, nil
+	case ".go":
+		return &TreeSitterScanner{Language: golang.GetLanguage()}, nil
+	default:
+		return nil, fmt.Errorf("unsupported file type: %s", ext)
+	}
+
+}
 
 type TreeSitterScanner struct {
 	Language *sitter.Language
