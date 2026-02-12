@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"walle/internal/languages"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -13,16 +14,9 @@ import (
 	"github.com/go-git/go-git/v5/utils/merkletrie"
 )
 
-var supportedExtensions = map[string]bool{
-	".py":  true,
-	".ts":  true,
-	".tsx": true,
-	".go":  true,
-}
-
 func isSupportedFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
-	return supportedExtensions[ext]
+	return languages.IsSupportedExtension(ext)
 }
 
 type Scanner interface {

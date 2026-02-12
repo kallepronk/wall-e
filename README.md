@@ -88,6 +88,42 @@ walle fix -p path/to/file.py
 2. **Scanning**: Scans through code and finds all comments.
 3. **Removal**: Removes comments from files (if in fix mode)
 
+## 🌐 Supported Languages
+
+WALL-E supports the following languages:
+
+- Bash (`.sh`, `.bash`)
+- C (`.c`, `.h`)
+- C++ (`.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`)
+- C# (`.cs`)
+- CSS (`.css`)
+- CUE (`.cue`)
+- Dockerfile
+- Elixir (`.ex`, `.exs`)
+- Elm (`.elm`)
+- Go (`.go`)
+- Groovy (`.groovy`, `.gradle`)
+- HCL/Terraform (`.hcl`, `.tf`, `.tfvars`)
+- HTML (`.html`, `.htm`)
+- Java (`.java`)
+- JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`)
+- Kotlin (`.kt`, `.kts`)
+- Lua (`.lua`)
+- OCaml (`.ml`, `.mli`)
+- PHP (`.php`)
+- Protobuf (`.proto`)
+- Python (`.py`, `.pyi`)
+- Ruby (`.rb`, `.rake`, `.gemspec`)
+- Rust (`.rs`)
+- Scala (`.scala`, `.sc`)
+- SQL (`.sql`)
+- Svelte (`.svelte`)
+- Swift (`.swift`)
+- TOML (`.toml`)
+- TSX (`.tsx`)
+- TypeScript (`.ts`, `.mts`, `.cts`)
+- YAML (`.yaml`, `.yml`)
+
 ## 📝 Example
 
 ```bash
