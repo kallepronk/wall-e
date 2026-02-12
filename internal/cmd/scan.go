@@ -15,6 +15,8 @@ var (
 	scanPath            string
 	verbose             bool
 	scanIgnoreGitIgnore bool
+	scanBaseCommit      string
+	scanTargetCommit    string
 )
 
 var scanCmd = &cobra.Command{
@@ -26,7 +28,10 @@ var scanCmd = &cobra.Command{
 }
 
 func runScan() {
-	scanOpts := &source.ScanOptions{}
+	scanOpts := &source.ScanOptions{
+		BaseCommit:   scanBaseCommit,
+		TargetCommit: scanTargetCommit,
+	}
 
 	if scanPath != "" {
 		info, err := os.Stat(scanPath)
@@ -105,4 +110,6 @@ func init() {
 	scanCmd.Flags().StringVarP(&scanPath, "path", "p", "", "Scan a specific file")
 	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show comments")
 	scanCmd.Flags().BoolVar(&scanIgnoreGitIgnore, "ignore-gitignore", false, "Ignore .gitignore rules")
+	scanCmd.Flags().StringVar(&scanBaseCommit, "base", "", "Base commit for comparison")
+	scanCmd.Flags().StringVar(&scanTargetCommit, "target", "", "Target commit for comparison")
 }

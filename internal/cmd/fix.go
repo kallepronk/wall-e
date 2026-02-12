@@ -13,6 +13,8 @@ var (
 	fixAll             bool
 	fixPath            string
 	fixIgnoreGitIgnore bool
+	fixBaseCommit      string
+	fixTargetCommit    string
 )
 
 var fixCmd = &cobra.Command{
@@ -24,7 +26,10 @@ var fixCmd = &cobra.Command{
 }
 
 func runFix() {
-	scanOpts := &source.ScanOptions{}
+	scanOpts := &source.ScanOptions{
+		BaseCommit:   fixBaseCommit,
+		TargetCommit: fixTargetCommit,
+	}
 
 	if fixPath != "" {
 		info, err := os.Stat(fixPath)
@@ -96,4 +101,6 @@ func init() {
 	fixCmd.Flags().StringVarP(&fixPath, "path", "p", "", "Scan a specific file or directory")
 	fixCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show comments")
 	fixCmd.Flags().BoolVar(&fixIgnoreGitIgnore, "ignore-gitignore", false, "Ignore .gitignore rules")
+	fixCmd.Flags().StringVar(&fixBaseCommit, "base", "", "Base commit for comparison")
+	fixCmd.Flags().StringVar(&fixTargetCommit, "target", "", "Target commit for comparison")
 }
