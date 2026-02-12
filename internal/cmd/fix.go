@@ -10,10 +10,8 @@ import (
 )
 
 var (
-	fixAll      bool
-	fixPath     string
-	interactive bool
-	force       bool
+	fixAll  bool
+	fixPath string
 )
 
 var fixCmd = &cobra.Command{
@@ -59,7 +57,7 @@ func runFix() {
 	}
 
 	pipelineOpts := pipeline.Options{
-		Verbose: false,
+		Verbose: verbose,
 	}
 
 	comments, err := pipeline.ScanPipeline(scanOpts, pipelineOpts)
@@ -84,4 +82,5 @@ func init() {
 	rootCmd.AddCommand(fixCmd)
 	fixCmd.Flags().BoolVarP(&fixAll, "all", "a", false, "Scan all files in the current directory")
 	fixCmd.Flags().StringVarP(&fixPath, "path", "p", "", "Scan a specific file or directory")
+	fixCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show comments")
 }

@@ -76,26 +76,25 @@ walle fix -f
 
 ### Scan Flags
 
-| Flag | Short | Description |
-|------|-------|-------------|
-| `--all` | `-a` | Scan all files in the current directory |
-| `--path` | `-p` | Scan a specific file or directory |
-| `--verbose` | `-v` | Show detailed output with line numbers |
+| Flag | Short | Description                                                   |
+|------|-------|---------------------------------------------------------------|
+| `--all` | `-a` | Scan all files in the current directory. Skips worktree check |
+| `--path` | `-p` | Scan a specific file or directory. Skips worktree check                        |
+| `--verbose` | `-v` | Show detailed output with line numbers                        |
 
 ### Fix Flags
 
 | Flag | Short | Description |
 |------|-------|-------------|
-| `--all` | `-a` | Fix all files in the current directory |
-| `--path` | `-p` | Fix a specific file or directory |
-| `--interactive` | `-i` | Interactively select which comments to remove |
-| `--force` | `-f` | Skip confirmation prompt |
+| `--all` | `-a` | Fix all files in the current directory. Skips worktree check |
+| `--path` | `-p` | Fix a specific file or directory. Skips worktree check |
+| `--verbose` | `-v` | Show detailed output with line numbers |
 
 ## 🔧 How It Works
 
-1. **Default Behavior**: WALL-E uses git to detect only changed files, ensuring you only clean up new comments you've added
-2. **Scanning**: Uses tree-sitter for accurate parsing to identify comments in your code
-3. **Removal**: Safely removes selected comments while preserving your code structure
+1. **Default Behavior**: WALL-E uses git to detect added of modified code in the worktree.
+2. **Scanning**: Scans through code and finds all comments.
+3. **Removal**: Removes comments from files (if in fix mode)
 
 ## 📝 Example
 
@@ -112,11 +111,7 @@ Found 11 comments in read_qr_code.py
         - Line 15: # Use OpenCV QRCodeDetector
         ...
 
-❯ walle fix -i
-Found 294 comments in 6 files.
-# Interactive TUI opens to select comments for removal
-
-❯ walle fix -f
+❯ walle fix
 Found 294 comments in 6 files.
 ✅ Removed 11 comments from read_qr_code.py
 ✅ Removed 43 comments from cv2_bounding_box.py
