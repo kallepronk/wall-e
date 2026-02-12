@@ -18,7 +18,6 @@ import (
 	"github.com/smacker/go-tree-sitter/java"
 	"github.com/smacker/go-tree-sitter/javascript"
 	"github.com/smacker/go-tree-sitter/kotlin"
-	"github.com/smacker/go-tree-sitter/lua"
 	"github.com/smacker/go-tree-sitter/ocaml"
 	"github.com/smacker/go-tree-sitter/php"
 	"github.com/smacker/go-tree-sitter/protobuf"
@@ -107,10 +106,6 @@ var SupportedLanguages = map[string]LanguageConfig{
 		Extensions: []string{".kt", ".kts"},
 		Language:   kotlin.GetLanguage(),
 	},
-	"lua": {
-		Extensions: []string{".lua"},
-		Language:   lua.GetLanguage(),
-	},
 	"ocaml": {
 		Extensions: []string{".ml", ".mli"},
 		Language:   ocaml.GetLanguage(),
@@ -194,15 +189,6 @@ func GetLanguageForExtension(ext string) *sitter.Language {
 		return config.Language
 	}
 	return nil
-}
-
-// GetSupportedExtensions returns a list of all supported file extensions
-func GetSupportedExtensions() []string {
-	extensions := make([]string, 0, len(extensionToLanguage))
-	for ext := range extensionToLanguage {
-		extensions = append(extensions, ext)
-	}
-	return extensions
 }
 
 // GetSupportedLanguageNames returns a sorted list of all supported language names

@@ -108,7 +108,6 @@ WALL-E supports the following languages:
 - Java (`.java`)
 - JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`)
 - Kotlin (`.kt`, `.kts`)
-- Lua (`.lua`)
 - OCaml (`.ml`, `.mli`)
 - PHP (`.php`)
 - Protobuf (`.proto`)
