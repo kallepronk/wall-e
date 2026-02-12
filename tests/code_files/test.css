@@ -1,0 +1,12 @@
+/* This is a single-line comment in CSS */
+
+/*
+This is a multi-line comment in CSS.
+It can span multiple lines.
+CSS only supports this style of comments.
+*/
+
+body {
+    margin: 0;
+}
+

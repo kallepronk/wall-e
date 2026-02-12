@@ -1,0 +1,8 @@
+# This is a single-line comment in YAML
+
+# YAML only supports single-line comments
+# using the hash symbol
+
+name: test
+version: 1.0.0
+

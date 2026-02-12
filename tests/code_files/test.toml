@@ -1,0 +1,8 @@
+# This is a single-line comment in TOML
+
+# TOML only supports single-line comments
+# using the hash symbol
+
+[package]
+name = "test"
+
