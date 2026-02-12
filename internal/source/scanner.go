@@ -86,9 +86,12 @@ func (g *GitScanner) getSpecificFiles(opts ScanOptions) ([]File, error) {
 		}
 
 		if gi != nil {
-			relPath, err := filepath.Rel(repoRoot, filePath)
-			if err == nil && gi.MatchesPath(relPath) {
-				continue
+			absPath, err := filepath.Abs(filePath)
+			if err == nil {
+				relPath, err := filepath.Rel(repoRoot, absPath)
+				if err == nil && gi.MatchesPath(relPath) {
+					continue
+				}
 			}
 		}
 

@@ -60,8 +60,7 @@ func runFix() {
 		}
 		scanOpts.SpecificFiles = files
 		scanOpts.Type = source.ScanWhole
-		// Bypass gitignore when using -a flag
-		scanOpts.IgnoreGitIgnore = true
+		// Respect gitignore by default when using -a flag
 	} else {
 		scanOpts.Type = source.ScanDiff
 		// Default: respect gitignore

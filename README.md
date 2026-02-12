@@ -104,7 +104,7 @@ walle fix --ignore-gitignore
 ## 🔧 How It Works
 
 1. **Default Behavior**: WALL-E uses git to detect added or modified code in the worktree.
-2. **Gitignore Handling**: By default, WALL-E respects `.gitignore` rules and skips ignored files. Use `--ignore-gitignore` to bypass this behavior. Note: When using `-a` or scanning a specific file with `-p`, gitignore rules are automatically bypassed.
+2. **Gitignore Handling**: By default, WALL-E respects `.gitignore` rules and skips ignored files. Use `--ignore-gitignore` to bypass this behavior. Note: When scanning a specific file with `-p`, gitignore rules are automatically bypassed for that file.
 3. **Commit Comparison**: Use `--base` and `--target` to compare between specific commits instead of the worktree.
 4. **Scanning**: Scans through code and finds all comments.
 5. **Removal**: Removes comments from files (if in fix mode)
