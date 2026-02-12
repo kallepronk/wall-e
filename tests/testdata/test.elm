@@ -2,7 +2,7 @@
 
 {-
 This is a multi-line comment in Elm.
-It can span multiple lines and is enclosed within {- and -}.
+It can span multiple lines and is enclosed within
 -}
 
 module Test exposing (..)

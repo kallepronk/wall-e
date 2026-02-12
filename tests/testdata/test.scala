@@ -2,7 +2,7 @@
 
 /*
 This is a multi-line comment in Scala.
-It can span multiple lines and is enclosed within /* and */.
+It can span multiple lines
 */
 
 /**

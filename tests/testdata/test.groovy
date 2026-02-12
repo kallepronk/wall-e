@@ -2,7 +2,7 @@
 
 /*
 This is a multi-line comment in Groovy.
-It can span multiple lines and is enclosed within /* and */.
+It can span multiple lines and is enclosed within /* and *\/ (without the backslash).
 */
 
 /**

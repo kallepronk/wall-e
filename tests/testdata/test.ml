@@ -2,7 +2,7 @@
 
 (*
 This is a multi-line comment in OCaml.
-It can span multiple lines and is enclosed within (* and *).
+It can span multiple lines
 *)
 
 let main () = ()

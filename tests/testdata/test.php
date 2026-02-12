@@ -6,7 +6,7 @@
 
 /*
 This is a multi-line comment in PHP.
-It can span multiple lines and is enclosed within /* and */.
+It can span multiple lines and is enclosed within /* *\/ (without the backslash).
 */
 
 /**
