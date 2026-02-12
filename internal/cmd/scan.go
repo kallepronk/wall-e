@@ -28,6 +28,14 @@ var scanCmd = &cobra.Command{
 }
 
 func runScan() {
+	// Validate target commit is not earlier than base commit
+	if scanBaseCommit != "" && scanTargetCommit != "" {
+		if err := source.ValidateCommitOrder(scanBaseCommit, scanTargetCommit); err != nil {
+			fmt.Printf("Error: %v\n", err)
+			return
+		}
+	}
+
 	scanOpts := &source.ScanOptions{
 		BaseCommit:   scanBaseCommit,
 		TargetCommit: scanTargetCommit,

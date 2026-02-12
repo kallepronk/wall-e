@@ -493,3 +493,56 @@ func computeLCS(a, b []string) []string {
 
 	return lcs
 }
+
+// ValidateCommitOrder checks that target commit is not earlier than base commit
+func ValidateCommitOrder(baseCommit, targetCommit string) error {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	repo, err := git.PlainOpenWithOptions(currentDir, &git.PlainOpenOptions{DetectDotGit: true})
+	if err != nil {
+		return errors.New("no git repository found")
+	}
+
+	// Resolve base commit
+	baseHash, err := repo.ResolveRevision(plumbing.Revision(baseCommit))
+	if err != nil {
+		return fmt.Errorf("failed to resolve base commit %s: %w", baseCommit, err)
+	}
+
+	// Resolve target commit
+	targetHash, err := repo.ResolveRevision(plumbing.Revision(targetCommit))
+	if err != nil {
+		return fmt.Errorf("failed to resolve target commit %s: %w", targetCommit, err)
+	}
+
+	// If base equals target, that's valid
+	if *baseHash == *targetHash {
+		return nil
+	}
+
+	// Check if base is an ancestor of target
+	targetCommitObj, err := repo.CommitObject(*targetHash)
+	if err != nil {
+		return fmt.Errorf("failed to get target commit: %w", err)
+	}
+
+	baseCommitObj, err := repo.CommitObject(*baseHash)
+	if err != nil {
+		return fmt.Errorf("failed to get base commit: %w", err)
+	}
+
+	// Check if base is reachable from target (meaning base is an ancestor of target)
+	isAncestor, err := baseCommitObj.IsAncestor(targetCommitObj)
+	if err != nil {
+		return fmt.Errorf("failed to check commit ancestry: %w", err)
+	}
+
+	if !isAncestor {
+		return fmt.Errorf("target commit is earlier than base commit - target must be later than or equal to base")
+	}
+
+	return nil
+}
