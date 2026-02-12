@@ -13,7 +13,6 @@ import (
 	"github.com/go-git/go-git/v5/utils/merkletrie"
 )
 
-// supportedExtensions contains file extensions that can be parsed for comments
 var supportedExtensions = map[string]bool{
 	".py":  true,
 	".ts":  true,
@@ -21,7 +20,6 @@ var supportedExtensions = map[string]bool{
 	".go":  true,
 }
 
-// isSupportedFile checks if a file has a supported extension
 func isSupportedFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	return supportedExtensions[ext]
@@ -59,7 +57,6 @@ func (g *GitScanner) getSpecificFiles(filePaths []string, scanType ScanType) ([]
 	var files []File
 
 	for _, filePath := range filePaths {
-		// Skip unsupported file types early to avoid expensive operations
 		if !isSupportedFile(filePath) {
 			continue
 		}
@@ -74,8 +71,6 @@ func (g *GitScanner) getSpecificFiles(filePaths []string, scanType ScanType) ([]
 			Content: content,
 		}
 
-		// For ScanWhole, treat file as added so all comments are found
-		// For ScanDiff, calculate the diff ranges (only added lines)
 		if scanType == ScanWhole {
 			file.Status = StatusAdded
 		} else {
@@ -104,7 +99,6 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 		return nil, errors.New("no source repository found (are you in a source dir?)")
 	}
 
-	// Resolve base commit (defaults to HEAD if empty)
 	var baseTree *object.Tree
 	if baseCommit == "" {
 		head, err := repo.Head()
@@ -134,7 +128,6 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 		}
 	}
 
-	// Resolve target commit (defaults to HEAD if empty)
 	var targetTree *object.Tree
 	if targetCommit == "" {
 		head, err := repo.Head()
@@ -164,7 +157,6 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 		}
 	}
 
-	// Get changes between commits
 	changes, err := baseTree.Diff(targetTree)
 	if err != nil {
 		return nil, fmt.Errorf("failed to compute diff: %w", err)
@@ -178,7 +170,6 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 			return nil, fmt.Errorf("failed to get change action: %w", err)
 		}
 
-		// Skip deleted files - only interested in added code
 		if action == merkletrie.Delete {
 			continue
 		}
@@ -206,7 +197,6 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 }
 
 func (g *GitScanner) processTreeFile(toFile *object.File, action merkletrie.Action, baseTree *object.Tree, scanType ScanType) (*File, error) {
-	// Skip unsupported file types early to avoid expensive operations
 	if !isSupportedFile(toFile.Name) {
 		return nil, nil
 	}
@@ -215,7 +205,6 @@ func (g *GitScanner) processTreeFile(toFile *object.File, action merkletrie.Acti
 		Path: toFile.Name,
 	}
 
-	// Set status based on action
 	switch action {
 	case merkletrie.Insert:
 		file.Status = StatusAdded
@@ -225,14 +214,12 @@ func (g *GitScanner) processTreeFile(toFile *object.File, action merkletrie.Acti
 		return nil, nil
 	}
 
-	// Get file content
 	content, err := toFile.Contents()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", toFile.Name, err)
 	}
 	file.Content = []byte(content)
 
-	// For ScanDiff, calculate the diff ranges (only added lines)
 	if scanType == ScanDiff {
 		var oldContent string
 		if baseTree != nil {
@@ -271,12 +258,10 @@ func (g *GitScanner) getWorkingTreeChanges(opts ScanOptions) ([]File, error) {
 	var files []File
 
 	for filePath, fileStatus := range status {
-		// Skip unsupported file types early to avoid expensive operations
 		if !isSupportedFile(filePath) {
 			continue
 		}
 
-		// Skip deleted files
 		if fileStatus.Staging == git.Deleted || fileStatus.Worktree == git.Deleted {
 			continue
 		}
@@ -284,7 +269,6 @@ func (g *GitScanner) getWorkingTreeChanges(opts ScanOptions) ([]File, error) {
 		var file File
 		file.Path = filePath
 
-		// Handle untracked files
 		if fileStatus.Worktree == git.Untracked {
 			if !opts.IncludeUntracked {
 				continue
@@ -300,8 +284,6 @@ func (g *GitScanner) getWorkingTreeChanges(opts ScanOptions) ([]File, error) {
 			continue
 		}
 
-		// Handle modified files
-		// Check Staging.Added first (takes precedence over Worktree.Modified for newly added files)
 		if fileStatus.Staging == git.Added {
 			file.Status = StatusAdded
 		} else if fileStatus.Staging == git.Modified || fileStatus.Worktree == git.Modified {
@@ -316,7 +298,6 @@ func (g *GitScanner) getWorkingTreeChanges(opts ScanOptions) ([]File, error) {
 		}
 		file.Content = content
 
-		// For ScanDiff, calculate the diff ranges (only added lines)
 		if opts.Type == ScanDiff {
 			diffRanges, err := g.getAddedLineRanges(repo, filePath)
 			if err != nil {
@@ -347,10 +328,8 @@ func (g *GitScanner) getAddedLineRanges(repo *git.Repository, filePath string) (
 		return nil, fmt.Errorf("failed to get head tree: %w", err)
 	}
 
-	// Get the file from HEAD
 	headFile, err := headTree.File(filePath)
 	if err != nil {
-		// File doesn't exist in HEAD, entire file is new
 		return nil, nil
 	}
 
@@ -359,13 +338,11 @@ func (g *GitScanner) getAddedLineRanges(repo *git.Repository, filePath string) (
 		return nil, fmt.Errorf("failed to read head file content: %w", err)
 	}
 
-	// Get current file content
 	currentContent, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read current file: %w", err)
 	}
 
-	// Calculate diff and extract added line ranges
 	return calculateAddedRanges(headContent, string(currentContent)), nil
 }
 
@@ -373,7 +350,6 @@ func calculateAddedRanges(oldContent, newContent string) []LineRange {
 	oldLines := splitLines(oldContent)
 	newLines := splitLines(newContent)
 
-	// Use a simple LCS-based diff to find added lines
 	lcs := computeLCS(oldLines, newLines)
 
 	var ranges []LineRange
@@ -381,18 +357,15 @@ func calculateAddedRanges(oldContent, newContent string) []LineRange {
 
 	lcsIndex := 0
 	for newLineNum, newLine := range newLines {
-		lineNum := newLineNum + 1 // 1-based line numbers
+		lineNum := newLineNum + 1
 
-		// Check if this line is in the LCS (i.e., not added)
 		if lcsIndex < len(lcs) && newLine == lcs[lcsIndex] {
-			// Line exists in old content, close current range if open
 			if currentRange != nil {
 				ranges = append(ranges, *currentRange)
 				currentRange = nil
 			}
 			lcsIndex++
 		} else {
-			// Line is added
 			if currentRange == nil {
 				currentRange = &LineRange{Start: lineNum, End: lineNum}
 			} else {
@@ -401,7 +374,6 @@ func calculateAddedRanges(oldContent, newContent string) []LineRange {
 		}
 	}
 
-	// Close final range if open
 	if currentRange != nil {
 		ranges = append(ranges, *currentRange)
 	}
@@ -427,20 +399,17 @@ func splitLines(content string) []string {
 	return lines
 }
 
-// computeLCS computes the Longest Common Subsequence of two string slices
 func computeLCS(a, b []string) []string {
 	m, n := len(a), len(b)
 	if m == 0 || n == 0 {
 		return nil
 	}
 
-	// Create DP table
 	dp := make([][]int, m+1)
 	for i := range dp {
 		dp[i] = make([]int, n+1)
 	}
 
-	// Fill DP table
 	for i := 1; i <= m; i++ {
 		for j := 1; j <= n; j++ {
 			if a[i-1] == b[j-1] {
@@ -451,7 +420,6 @@ func computeLCS(a, b []string) []string {
 		}
 	}
 
-	// Backtrack to find LCS
 	lcs := make([]string, dp[m][n])
 	i, j := m, n
 	k := len(lcs) - 1
