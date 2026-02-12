@@ -18,8 +18,6 @@ brew install walle
 ### From Source
 
 ```bash
-git clone https://github.com/kallepronk/python-comment-remover.git
-cd python-comment-remover
 go build -o walle .
 ```
 
@@ -56,12 +54,6 @@ walle fix -a
 
 # Remove comments from a specific file or directory
 walle fix -p path/to/file.py
-
-# Interactive mode - select which comments to remove
-walle fix -i
-
-# Force mode - skip confirmation prompt
-walle fix -f
 ```
 
 ## 📋 Commands
