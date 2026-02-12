@@ -12,11 +12,32 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/go-git/go-git/v5/utils/merkletrie"
+	gitignore "github.com/sabhiram/go-gitignore"
 )
 
 func isSupportedFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	return languages.IsSupportedExtension(ext)
+}
+
+func loadGitIgnore(repoRoot string) *gitignore.GitIgnore {
+	gitignorePath := filepath.Join(repoRoot, ".gitignore")
+	if _, err := os.Stat(gitignorePath); err != nil {
+		return nil
+	}
+	gi, err := gitignore.CompileIgnoreFile(gitignorePath)
+	if err != nil {
+		return nil
+	}
+	return gi
+}
+
+func getRepoRoot(repo *git.Repository) (string, error) {
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return "", err
+	}
+	return worktree.Filesystem.Root(), nil
 }
 
 type Scanner interface {
@@ -27,17 +48,17 @@ type GitScanner struct{}
 
 func (g *GitScanner) GetFiles(opts ScanOptions) ([]File, error) {
 	if len(opts.SpecificFiles) > 0 {
-		return g.getSpecificFiles(opts.SpecificFiles, opts.Type)
+		return g.getSpecificFiles(opts)
 	}
 
 	if opts.BaseCommit != "" || opts.TargetCommit != "" {
-		return g.getCommitDiff(opts.BaseCommit, opts.TargetCommit, opts.Type)
+		return g.getCommitDiff(opts)
 	}
 
 	return g.getWorkingTreeChanges(opts)
 }
 
-func (g *GitScanner) getSpecificFiles(filePaths []string, scanType ScanType) ([]File, error) {
+func (g *GitScanner) getSpecificFiles(opts ScanOptions) ([]File, error) {
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -48,11 +69,27 @@ func (g *GitScanner) getSpecificFiles(filePaths []string, scanType ScanType) ([]
 		return nil, errors.New("no source repository found (are you in a source dir?)")
 	}
 
+	var gi *gitignore.GitIgnore
+	var repoRoot string
+	if !opts.IgnoreGitIgnore {
+		repoRoot, err = getRepoRoot(repo)
+		if err == nil {
+			gi = loadGitIgnore(repoRoot)
+		}
+	}
+
 	var files []File
 
-	for _, filePath := range filePaths {
+	for _, filePath := range opts.SpecificFiles {
 		if !isSupportedFile(filePath) {
 			continue
+		}
+
+		if gi != nil {
+			relPath, err := filepath.Rel(repoRoot, filePath)
+			if err == nil && gi.MatchesPath(relPath) {
+				continue
+			}
 		}
 
 		content, err := os.ReadFile(filePath)
@@ -65,7 +102,7 @@ func (g *GitScanner) getSpecificFiles(filePaths []string, scanType ScanType) ([]
 			Content: content,
 		}
 
-		if scanType == ScanWhole {
+		if opts.Type == ScanWhole {
 			file.Status = StatusAdded
 		} else {
 			file.Status = StatusModified
@@ -82,7 +119,7 @@ func (g *GitScanner) getSpecificFiles(filePaths []string, scanType ScanType) ([]
 	return files, nil
 }
 
-func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanType ScanType) ([]File, error) {
+func (g *GitScanner) getCommitDiff(opts ScanOptions) ([]File, error) {
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return nil, err
@@ -93,8 +130,16 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 		return nil, errors.New("no source repository found (are you in a source dir?)")
 	}
 
+	var gi *gitignore.GitIgnore
+	if !opts.IgnoreGitIgnore {
+		repoRoot, err := getRepoRoot(repo)
+		if err == nil {
+			gi = loadGitIgnore(repoRoot)
+		}
+	}
+
 	var baseTree *object.Tree
-	if baseCommit == "" {
+	if opts.BaseCommit == "" {
 		head, err := repo.Head()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get HEAD: %w", err)
@@ -108,9 +153,9 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 			return nil, fmt.Errorf("failed to get base tree: %w", err)
 		}
 	} else {
-		baseHash, err := repo.ResolveRevision(plumbing.Revision(baseCommit))
+		baseHash, err := repo.ResolveRevision(plumbing.Revision(opts.BaseCommit))
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve base commit %s: %w", baseCommit, err)
+			return nil, fmt.Errorf("failed to resolve base commit %s: %w", opts.BaseCommit, err)
 		}
 		baseCommitObj, err := repo.CommitObject(*baseHash)
 		if err != nil {
@@ -123,7 +168,7 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 	}
 
 	var targetTree *object.Tree
-	if targetCommit == "" {
+	if opts.TargetCommit == "" {
 		head, err := repo.Head()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get HEAD: %w", err)
@@ -137,9 +182,9 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 			return nil, fmt.Errorf("failed to get target tree: %w", err)
 		}
 	} else {
-		targetHash, err := repo.ResolveRevision(plumbing.Revision(targetCommit))
+		targetHash, err := repo.ResolveRevision(plumbing.Revision(opts.TargetCommit))
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve target commit %s: %w", targetCommit, err)
+			return nil, fmt.Errorf("failed to resolve target commit %s: %w", opts.TargetCommit, err)
 		}
 		targetCommitObj, err := repo.CommitObject(*targetHash)
 		if err != nil {
@@ -177,7 +222,11 @@ func (g *GitScanner) getCommitDiff(baseCommit string, targetCommit string, scanT
 			continue
 		}
 
-		file, err := g.processTreeFile(toFile, action, baseTree, scanType)
+		if gi != nil && gi.MatchesPath(toFile.Name) {
+			continue
+		}
+
+		file, err := g.processTreeFile(toFile, action, baseTree, opts.Type)
 		if err != nil {
 			return nil, err
 		}
@@ -239,6 +288,14 @@ func (g *GitScanner) getWorkingTreeChanges(opts ScanOptions) ([]File, error) {
 		return nil, errors.New("no source repository found (are you in a source dir?)")
 	}
 
+	var gi *gitignore.GitIgnore
+	if !opts.IgnoreGitIgnore {
+		repoRoot, err := getRepoRoot(repo)
+		if err == nil {
+			gi = loadGitIgnore(repoRoot)
+		}
+	}
+
 	worktree, err := repo.Worktree()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worktree: %w", err)
@@ -253,6 +310,10 @@ func (g *GitScanner) getWorkingTreeChanges(opts ScanOptions) ([]File, error) {
 
 	for filePath, fileStatus := range status {
 		if !isSupportedFile(filePath) {
+			continue
+		}
+
+		if gi != nil && gi.MatchesPath(filePath) {
 			continue
 		}
 

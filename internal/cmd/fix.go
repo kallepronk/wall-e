@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	fixAll  bool
-	fixPath string
+	fixAll             bool
+	fixPath            string
+	fixIgnoreGitIgnore bool
 )
 
 var fixCmd = &cobra.Command{
@@ -39,8 +40,11 @@ func runFix() {
 				return
 			}
 			scanOpts.SpecificFiles = files
+			// Respect gitignore when scanning a directory
 		} else {
 			scanOpts.SpecificFiles = []string{fixPath}
+			// Bypass gitignore when scanning a specific file
+			scanOpts.IgnoreGitIgnore = true
 		}
 		scanOpts.Type = source.ScanWhole
 	} else if fixAll {
@@ -52,8 +56,16 @@ func runFix() {
 		}
 		scanOpts.SpecificFiles = files
 		scanOpts.Type = source.ScanWhole
+		// Bypass gitignore when using -a flag
+		scanOpts.IgnoreGitIgnore = true
 	} else {
 		scanOpts.Type = source.ScanDiff
+		// Default: respect gitignore
+	}
+
+	// Override gitignore if flag is set
+	if fixIgnoreGitIgnore {
+		scanOpts.IgnoreGitIgnore = true
 	}
 
 	pipelineOpts := pipeline.Options{
@@ -83,4 +95,5 @@ func init() {
 	fixCmd.Flags().BoolVarP(&fixAll, "all", "a", false, "Scan all files in the current directory")
 	fixCmd.Flags().StringVarP(&fixPath, "path", "p", "", "Scan a specific file or directory")
 	fixCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show comments")
+	fixCmd.Flags().BoolVar(&fixIgnoreGitIgnore, "ignore-gitignore", false, "Ignore .gitignore rules")
 }

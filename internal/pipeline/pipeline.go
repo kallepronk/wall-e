@@ -34,7 +34,7 @@ func ScanPipeline(scanOpts *source.ScanOptions, pipeOpts Options) ([]comment.Com
 			comments, err := commentScanner.Scan(file)
 			if err != nil {
 				mu.Lock()
-				fmt.Printf("⚠️  Parse error scanning %s: %v\n", file, err)
+				fmt.Printf("⚠️  Parse error scanning %s: %v\n", file.Path, err)
 				mu.Unlock()
 				return
 			}

@@ -16,6 +16,7 @@ type ScanOptions struct {
 	TargetCommit string
 
 	IncludeUntracked bool
+	IgnoreGitIgnore  bool
 }
 
 type File struct {
