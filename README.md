@@ -39,6 +39,14 @@ walle scan -p path/to/file.py
 
 # Verbose output (shows each comment with line numbers)
 walle scan -v
+# Scan changes between two commits
+walle scan --base main --target HEAD
+
+# Scan changes since a specific commit
+walle scan --base HEAD~5
+
+# Include files ignored by .gitignore
+walle scan --ignore-gitignore
 ```
 
 ### Remove Comments
@@ -54,9 +62,15 @@ walle fix -a
 
 # Remove comments from a specific file or directory
 walle fix -p path/to/file.py
+
+# Remove comments from changes since a specific commit
+walle fix --base main
+
+# Include files ignored by .gitignore
+walle fix --ignore-gitignore
 ```
 
-## 📋 Commands
+## Commands
 
 | Command | Description |
 |---------|-------------|
@@ -64,7 +78,7 @@ walle fix -p path/to/file.py
 | `walle fix` | Remove comments from files |
 | `walle help` | Help about any command |
 
-## 🎛️ Flags
+## Flags
 
 ### Scan Flags
 
@@ -73,6 +87,9 @@ walle fix -p path/to/file.py
 | `--all` | `-a` | Scan all files in the current directory. Skips worktree check |
 | `--path` | `-p` | Scan a specific file or directory. Skips worktree check                        |
 | `--verbose` | `-v` | Show detailed output with line numbers                        |
+| `--ignore-gitignore` | | Ignore `.gitignore` rules when scanning |
+| `--base` | | Base commit for comparison (e.g., `main`, `HEAD~5`, commit SHA) |
+| `--target` | | Target commit for comparison (e.g., `HEAD`, commit SHA) |
 
 ### Fix Flags
 
@@ -81,14 +98,18 @@ walle fix -p path/to/file.py
 | `--all` | `-a` | Fix all files in the current directory. Skips worktree check |
 | `--path` | `-p` | Fix a specific file or directory. Skips worktree check |
 | `--verbose` | `-v` | Show detailed output with line numbers |
+| `--ignore-gitignore` | | Ignore `.gitignore` rules when fixing |
+| `--base` | | Base commit for comparison (target is always HEAD) |
 
 ## 🔧 How It Works
 
-1. **Default Behavior**: WALL-E uses git to detect added of modified code in the worktree.
-2. **Scanning**: Scans through code and finds all comments.
-3. **Removal**: Removes comments from files (if in fix mode)
+1. **Default Behavior**: WALL-E uses git to detect added or modified code in the worktree.
+2. **Gitignore Handling**: By default, WALL-E respects `.gitignore` rules and skips ignored files. Use `--ignore-gitignore` to bypass this behavior. Note: When using `-a` or scanning a specific file with `-p`, gitignore rules are automatically bypassed.
+3. **Commit Comparison**: Use `--base` and `--target` to compare between specific commits instead of the worktree.
+4. **Scanning**: Scans through code and finds all comments.
+5. **Removal**: Removes comments from files (if in fix mode)
 
-## 🌐 Supported Languages
+## Supported Languages
 
 WALL-E supports the following languages:
 
@@ -123,7 +144,7 @@ WALL-E supports the following languages:
 - TypeScript (`.ts`, `.mts`, `.cts`)
 - YAML (`.yaml`, `.yml`)
 
-## 📝 Example
+## Example
 
 ```bash
 ❯ walle scan
