@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"walle/internal/discovery"
 	"walle/internal/pipeline"
-	"walle/internal/source"
 
 	"github.com/spf13/cobra"
 )
@@ -25,7 +25,7 @@ var fixCmd = &cobra.Command{
 }
 
 func runFix() {
-	scanOpts := &source.ScanOptions{
+	scanOpts := &discovery.ScanOptions{
 		BaseCommit: fixBaseCommit,
 		// TargetCommit is always empty (HEAD) for fix - we only remove comments that don't exist anymore
 	}
@@ -50,7 +50,7 @@ func runFix() {
 			// Bypass gitignore when scanning a specific file
 			scanOpts.IgnoreGitIgnore = true
 		}
-		scanOpts.Type = source.ScanWhole
+		scanOpts.Type = discovery.ScanWhole
 	} else if fixAll {
 		var err error
 		files, err := findAllFiles(".")
@@ -59,10 +59,10 @@ func runFix() {
 			return
 		}
 		scanOpts.SpecificFiles = files
-		scanOpts.Type = source.ScanWhole
+		scanOpts.Type = discovery.ScanWhole
 		// Respect gitignore by default when using -a flag
 	} else {
-		scanOpts.Type = source.ScanDiff
+		scanOpts.Type = discovery.ScanDiff
 		// Default: respect gitignore
 	}
 

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"walle/internal/discovery"
 	"walle/internal/pipeline"
-	"walle/internal/source"
 
 	"github.com/spf13/cobra"
 )
@@ -30,13 +30,13 @@ var scanCmd = &cobra.Command{
 func runScan() {
 	// Validate target commit is not earlier than base commit
 	if scanBaseCommit != "" && scanTargetCommit != "" {
-		if err := source.ValidateCommitOrder(scanBaseCommit, scanTargetCommit); err != nil {
+		if err := discovery.ValidateCommitOrder(scanBaseCommit, scanTargetCommit); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			return
 		}
 	}
 
-	scanOpts := &source.ScanOptions{
+	scanOpts := &discovery.ScanOptions{
 		BaseCommit:   scanBaseCommit,
 		TargetCommit: scanTargetCommit,
 	}
@@ -61,7 +61,7 @@ func runScan() {
 			// Bypass gitignore when scanning a specific file
 			scanOpts.IgnoreGitIgnore = true
 		}
-		scanOpts.Type = source.ScanWhole
+		scanOpts.Type = discovery.ScanWhole
 	} else if scanAll {
 		var err error
 		files, err := findAllFiles(".")
@@ -70,10 +70,10 @@ func runScan() {
 			return
 		}
 		scanOpts.SpecificFiles = files
-		scanOpts.Type = source.ScanWhole
+		scanOpts.Type = discovery.ScanWhole
 		// Respect gitignore by default when using -a flag
 	} else {
-		scanOpts.Type = source.ScanDiff
+		scanOpts.Type = discovery.ScanDiff
 		// Default: respect gitignore
 	}
 

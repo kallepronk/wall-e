@@ -5,11 +5,11 @@ import (
 	"strings"
 	"sync"
 	"walle/internal/comment"
-	"walle/internal/source"
+	"walle/internal/discovery"
 )
 
-func ScanPipeline(scanOpts *source.ScanOptions, pipeOpts Options) ([]comment.Comment, error) {
-	gitScanner := &source.GitScanner{}
+func ScanPipeline(scanOpts *discovery.ScanOptions, pipeOpts Options) ([]comment.Comment, error) {
+	gitScanner := &discovery.GitScanner{}
 
 	files, err := gitScanner.GetFiles(*scanOpts)
 	if err != nil {
@@ -24,7 +24,7 @@ func ScanPipeline(scanOpts *source.ScanOptions, pipeOpts Options) ([]comment.Com
 	for _, file := range files {
 		wg.Add(1)
 
-		go func(file source.File) {
+		go func(file discovery.File) {
 			defer wg.Done()
 			commentScanner, err := comment.GetScanner(file.Path)
 			if err != nil {

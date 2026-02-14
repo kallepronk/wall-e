@@ -1,4 +1,4 @@
-package source
+package discovery
 
 type ScanType int
 

@@ -1,4 +1,4 @@
-package source
+package discovery
 
 import (
 	"errors"
@@ -66,7 +66,7 @@ func (g *GitScanner) getSpecificFiles(opts ScanOptions) ([]File, error) {
 
 	repo, err := git.PlainOpenWithOptions(currentDir, &git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
-		return nil, errors.New("no source repository found (are you in a source dir?)")
+		return nil, errors.New("no discovery repository found (are you in a discovery dir?)")
 	}
 
 	var gi *gitignore.GitIgnore
@@ -130,7 +130,7 @@ func (g *GitScanner) getCommitDiff(opts ScanOptions) ([]File, error) {
 
 	repo, err := git.PlainOpenWithOptions(currentDir, &git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
-		return nil, errors.New("no source repository found (are you in a source dir?)")
+		return nil, errors.New("no discovery repository found (are you in a discovery dir?)")
 	}
 
 	var gi *gitignore.GitIgnore
@@ -288,7 +288,7 @@ func (g *GitScanner) getWorkingTreeChanges(opts ScanOptions) ([]File, error) {
 
 	repo, err := git.PlainOpenWithOptions(currentDir, &git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
-		return nil, errors.New("no source repository found (are you in a source dir?)")
+		return nil, errors.New("no discovery repository found (are you in a discovery dir?)")
 	}
 
 	var gi *gitignore.GitIgnore
