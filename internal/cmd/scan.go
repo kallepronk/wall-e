@@ -3,90 +3,59 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
+	"strings"
 	"walle/internal/pipeline"
-	"walle/internal/source"
 
 	"github.com/spf13/cobra"
 )
 
 var (
 	scanAll             bool
-	scanPath            string
-	verbose             bool
 	scanIgnoreGitIgnore bool
 	scanBaseCommit      string
 	scanTargetCommit    string
+	scanVerbose         bool
 )
 
 var scanCmd = &cobra.Command{
-	Use:   "scan",
-	Short: "Find comments without deleting them",
+	Use:   "scan [file...]",
+	Short: "Find comments without modifying files",
+	Long: `Scan reports all comments found in the target files.
+
+By default, only files with uncommitted working-tree changes are scanned and
+only the changed lines within those files are inspected. Pass explicit file
+paths as arguments, --all, or --base/--target to change which files are in scope.`,
+	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		runScan()
+		runScan(args)
 	},
 }
 
-func runScan() {
-	// Validate target commit is not earlier than base commit
-	if scanBaseCommit != "" && scanTargetCommit != "" {
-		if err := source.ValidateCommitOrder(scanBaseCommit, scanTargetCommit); err != nil {
-			fmt.Printf("Error: %v\n", err)
-			return
-		}
+func runScan(paths []string) {
+	rootPath, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Error getting working directory: %v\n", err)
+		return
 	}
 
-	scanOpts := &source.ScanOptions{
-		BaseCommit:   scanBaseCommit,
-		TargetCommit: scanTargetCommit,
+	collect, filters, err := buildCollect(
+		rootPath,
+		paths,
+		scanAll,
+		scanBaseCommit,
+		scanTargetCommit,
+		false, // scan uses diff ranges, not whole-file
+		scanIgnoreGitIgnore,
+	)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
 	}
 
-	if scanPath != "" {
-		info, err := os.Stat(scanPath)
-		if err != nil {
-			fmt.Printf("Error finding path: %v\n", err)
-			return
-		}
-
-		if info.IsDir() {
-			files, err := findAllFiles(scanPath)
-			if err != nil {
-				fmt.Printf("Error listing files: %v\n", err)
-				return
-			}
-			scanOpts.SpecificFiles = files
-			// Respect gitignore when scanning a directory
-		} else {
-			scanOpts.SpecificFiles = []string{scanPath}
-			// Bypass gitignore when scanning a specific file
-			scanOpts.IgnoreGitIgnore = true
-		}
-		scanOpts.Type = source.ScanWhole
-	} else if scanAll {
-		var err error
-		files, err := findAllFiles(".")
-		if err != nil {
-			fmt.Printf("Error listing files: %v\n", err)
-			return
-		}
-		scanOpts.SpecificFiles = files
-		scanOpts.Type = source.ScanWhole
-		// Respect gitignore by default when using -a flag
-	} else {
-		scanOpts.Type = source.ScanDiff
-		// Default: respect gitignore
-	}
-
-	// Override gitignore if flag is set
-	if scanIgnoreGitIgnore {
-		scanOpts.IgnoreGitIgnore = true
-	}
-
-	pipelineOpts := pipeline.Options{
-		Verbose: verbose,
-	}
-
-	comments, err := pipeline.ScanPipeline(scanOpts, pipelineOpts)
+	comments, err := pipeline.ScanPipeline(pipeline.RunConfig{
+		Collect: collect,
+		Filters: filters,
+	})
 	if err != nil {
 		fmt.Printf("Error scanning: %v\n", err)
 		return
@@ -94,29 +63,35 @@ func runScan() {
 
 	if len(comments) == 0 {
 		fmt.Println("No comments found.")
+		return
 	}
-}
 
-func findAllFiles(root string) ([]string, error) {
-	var files []string
-	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return err
+	// Group by file for readable output.
+	byFile := make(map[string]int)
+	for _, c := range comments {
+		byFile[c.FilePath]++
+	}
+	for file, count := range byFile {
+		fmt.Printf("Found %d comment(s) in %s\n", count, file)
+	}
+
+	if scanVerbose {
+		for _, c := range comments {
+			fmt.Printf("  %s:%d  %s\n",
+				c.FilePath, c.Line,
+				strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "),
+			)
 		}
-		if !d.IsDir() {
-			files = append(files, path)
-		}
-		return nil
-	})
-	return files, err
+	}
+
+	fmt.Printf("\nTotal: %d comment(s) in %d file(s)\n", len(comments), len(byFile))
 }
 
 func init() {
 	rootCmd.AddCommand(scanCmd)
-	scanCmd.Flags().BoolVarP(&scanAll, "all", "a", false, "Scan all files")
-	scanCmd.Flags().StringVarP(&scanPath, "path", "p", "", "Scan a specific file")
-	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show comments")
-	scanCmd.Flags().BoolVar(&scanIgnoreGitIgnore, "ignore-gitignore", false, "Ignore .gitignore rules")
-	scanCmd.Flags().StringVar(&scanBaseCommit, "base", "", "Base commit for comparison")
-	scanCmd.Flags().StringVar(&scanTargetCommit, "target", "", "Target commit for comparison")
+	scanCmd.Flags().BoolVarP(&scanAll, "all", "a", false, "Scan all files under the current directory")
+	scanCmd.Flags().BoolVarP(&scanVerbose, "verbose", "v", false, "Print each comment")
+	scanCmd.Flags().BoolVar(&scanIgnoreGitIgnore, "ignore-gitignore", false, "Do not apply .gitignore rules")
+	scanCmd.Flags().StringVar(&scanBaseCommit, "base", "", "Base commit (enables history scan)")
+	scanCmd.Flags().StringVar(&scanTargetCommit, "target", "", "Target commit (defaults to HEAD when --base is set)")
 }

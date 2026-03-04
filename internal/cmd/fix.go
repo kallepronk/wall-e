@@ -3,79 +3,65 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"walle/internal/pipeline"
-	"walle/internal/source"
 
 	"github.com/spf13/cobra"
 )
 
 var (
 	fixAll             bool
-	fixPath            string
 	fixIgnoreGitIgnore bool
 	fixBaseCommit      string
+	fixVerbose         bool
 )
 
 var fixCmd = &cobra.Command{
-	Use:   "fix",
-	Short: "Trash compact comments",
+	Use:   "fix [file...]",
+	Short: "Remove comments from files",
+	Long: `Fix scans for comments and removes them from disk.
+
+By default, only files with uncommitted working-tree changes are scanned and
+only comments on changed lines are removed. Pass explicit file paths as
+arguments, --all, or --base to change which files are in scope.
+
+When explicit file paths are given every comment in those files is removed,
+not just comments on changed lines.`,
+	Args: cobra.ArbitraryArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		runFix()
+		runFix(args)
 	},
 }
 
-func runFix() {
-	scanOpts := &source.ScanOptions{
-		BaseCommit: fixBaseCommit,
-		// TargetCommit is always empty (HEAD) for fix - we only remove comments that don't exist anymore
+func runFix(paths []string) {
+	rootPath, err := os.Getwd()
+	if err != nil {
+		fmt.Printf("Error getting working directory: %v\n", err)
+		return
 	}
 
-	if fixPath != "" {
-		info, err := os.Stat(fixPath)
-		if err != nil {
-			fmt.Printf("Error finding path: %v\n", err)
-			return
-		}
+	// When the caller names specific files we remove ALL comments in them
+	// (scanWhole = true). For every other mode we respect diff ranges.
+	scanWhole := len(paths) > 0 || fixAll
 
-		if info.IsDir() {
-			files, err := findAllFiles(fixPath)
-			if err != nil {
-				fmt.Printf("Error listing files: %v\n", err)
-				return
-			}
-			scanOpts.SpecificFiles = files
-			// Respect gitignore when scanning a directory
-		} else {
-			scanOpts.SpecificFiles = []string{fixPath}
-			// Bypass gitignore when scanning a specific file
-			scanOpts.IgnoreGitIgnore = true
-		}
-		scanOpts.Type = source.ScanWhole
-	} else if fixAll {
-		var err error
-		files, err := findAllFiles(".")
-		if err != nil {
-			fmt.Printf("Error listing files: %v\n", err)
-			return
-		}
-		scanOpts.SpecificFiles = files
-		scanOpts.Type = source.ScanWhole
-		// Respect gitignore by default when using -a flag
-	} else {
-		scanOpts.Type = source.ScanDiff
-		// Default: respect gitignore
+	collect, filters, err := buildCollect(
+		rootPath,
+		paths,
+		fixAll,
+		fixBaseCommit,
+		"", // fix always targets HEAD
+		scanWhole,
+		fixIgnoreGitIgnore,
+	)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
 	}
 
-	// Override gitignore if flag is set
-	if fixIgnoreGitIgnore {
-		scanOpts.IgnoreGitIgnore = true
-	}
-
-	pipelineOpts := pipeline.Options{
-		Verbose: verbose,
-	}
-
-	comments, err := pipeline.ScanPipeline(scanOpts, pipelineOpts)
+	comments, err := pipeline.ScanPipeline(pipeline.RunConfig{
+		Collect: collect,
+		Filters: filters,
+	})
 	if err != nil {
 		fmt.Printf("Error scanning: %v\n", err)
 		return
@@ -86,18 +72,35 @@ func runFix() {
 		return
 	}
 
-	err = pipeline.TrashPipeline(comments)
-	if err != nil {
-		fmt.Printf("Error in trash pipeline: %v\n", err)
+	// Report what was found before removal.
+	byFile := make(map[string]int)
+	for _, c := range comments {
+		byFile[c.FilePath]++
+	}
+	for file, count := range byFile {
+		fmt.Printf("Found %d comment(s) in %s\n", count, file)
+	}
+	if fixVerbose {
+		for _, c := range comments {
+			fmt.Printf("  %s:%d  %s\n",
+				c.FilePath, c.Line,
+				strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "),
+			)
+		}
+	}
+
+	if err := pipeline.TrashPipeline(comments); err != nil {
+		fmt.Printf("Error removing comments: %v\n", err)
 		return
 	}
+
+	fmt.Printf("\nRemoved %d comment(s) from %d file(s)\n", len(comments), len(byFile))
 }
 
 func init() {
 	rootCmd.AddCommand(fixCmd)
-	fixCmd.Flags().BoolVarP(&fixAll, "all", "a", false, "Scan all files in the current directory")
-	fixCmd.Flags().StringVarP(&fixPath, "path", "p", "", "Scan a specific file or directory")
-	fixCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show comments")
-	fixCmd.Flags().BoolVar(&fixIgnoreGitIgnore, "ignore-gitignore", false, "Ignore .gitignore rules")
-	fixCmd.Flags().StringVar(&fixBaseCommit, "base", "", "Base commit for comparison (target is always HEAD)")
+	fixCmd.Flags().BoolVarP(&fixAll, "all", "a", false, "Fix all files under the current directory")
+	fixCmd.Flags().StringVarP(&fixBaseCommit, "base", "b", "", "Base commit (enables history scan; target is always HEAD)")
+	fixCmd.Flags().BoolVarP(&fixVerbose, "verbose", "v", false, "Print each comment before removing it")
+	fixCmd.Flags().BoolVar(&fixIgnoreGitIgnore, "ignore-gitignore", false, "Do not apply .gitignore rules")
 }

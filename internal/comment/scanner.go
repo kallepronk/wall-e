@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"walle/internal/discovery"
 	"walle/internal/languages"
-	"walle/internal/source"
 
 	sitter "github.com/smacker/go-tree-sitter"
 )
 
 type Scanner interface {
-	Scan(file source.File) ([]Comment, error)
+	Scan(file discovery.File) ([]Comment, error)
 }
 
 func GetScanner(filename string) (Scanner, error) {
@@ -39,7 +39,7 @@ var commentQueries = []string{
 	`(multiline_comment) @comment`,
 }
 
-func (s *TreeSitterScanner) Scan(file source.File) ([]Comment, error) {
+func (s *TreeSitterScanner) Scan(file discovery.File) ([]Comment, error) {
 	parser := sitter.NewParser()
 	parser.SetLanguage(s.Language)
 
@@ -72,7 +72,7 @@ func (s *TreeSitterScanner) Scan(file source.File) ([]Comment, error) {
 				node := capture.Node
 				line := int(node.StartPoint().Row) + 1
 
-				if file.Status == source.StatusAdded || file.Status == source.StatusUntracked {
+				if file.Status == discovery.StatusAdded || file.Status == discovery.StatusUntracked {
 					comments = append(comments, Comment{
 						FilePath:  file.Path,
 						Text:      node.Content(file.Content),
@@ -108,4 +108,4 @@ func isLineInDiffRanges(line int, ranges []LineRange) bool {
 	return false
 }
 
-type LineRange = source.LineRange
+type LineRange = discovery.LineRange

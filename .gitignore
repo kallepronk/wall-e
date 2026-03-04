@@ -12,6 +12,8 @@
 # AWS User-specific
 .idea/**/aws.xml
 
+ignore.go
+walle
 # Generated files
 .idea/**/contentModel.xml
 
