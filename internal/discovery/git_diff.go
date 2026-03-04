@@ -1,22 +1,24 @@
 package discovery
 
 import (
-	"errors"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/go-git/go-git/v5"
 )
 
+// FromGitDiff returns a Collect that discovers files with uncommitted changes
+// in the working tree. Each eligible file is read and its diff ranges computed
+// concurrently — one goroutine per file — since both file I/O and LCS
+// calculation are independent across files.
 func FromGitDiff(rootPath string) (Collect, error) {
-
 	repo, err := git.PlainOpenWithOptions(rootPath, &git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
-		return nil, errors.New("no git repository found (is this directory in a git repo?)")
+		return nil, fmt.Errorf("no git repository found (is this directory in a git repo?): %w", err)
 	}
 
 	return func() ([]File, error) {
-
 		worktree, err := repo.Worktree()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get worktree: %w", err)
@@ -24,54 +26,83 @@ func FromGitDiff(rootPath string) (Collect, error) {
 
 		status, err := worktree.Status()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get status: %w", err)
+			return nil, fmt.Errorf("failed to get worktree status: %w", err)
 		}
 
-		var files []File
+		// Collect candidates before spawning goroutines.
+		type candidate struct {
+			path       string
+			fileStatus FileStatus
+		}
 
-		for filePath, fileStatus := range status {
-			if fileStatus.Staging == git.Deleted || fileStatus.Worktree == git.Deleted {
+		var candidates []candidate
+		for filePath, s := range status {
+			if s.Staging == git.Deleted || s.Worktree == git.Deleted {
 				continue
 			}
 
-			var file File
-			file.Path = filePath
+			switch {
+			case s.Worktree == git.Untracked:
+				candidates = append(candidates, candidate{filePath, StatusUntracked})
+			case s.Staging == git.Added:
+				candidates = append(candidates, candidate{filePath, StatusAdded})
+			case s.Staging == git.Modified || s.Worktree == git.Modified:
+				candidates = append(candidates, candidate{filePath, StatusModified})
+			}
+		}
 
-			if fileStatus.Worktree == git.Untracked {
-				file.Status = StatusUntracked
+		// Fan-out: read + diff each file concurrently. File I/O and LCS
+		// computation are both independent across files, so this scales
+		// horizontally with the number of changed files.
+		files := make([]File, len(candidates))
+		errs := make([]error, len(candidates))
 
-				content, err := os.ReadFile(filePath)
+		var wg sync.WaitGroup
+		for i, c := range candidates {
+			wg.Add(1)
+			go func(i int, c candidate) {
+				defer wg.Done()
+
+				content, err := os.ReadFile(c.path)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
+					errs[i] = fmt.Errorf("failed to read file %s: %w", c.path, err)
+					return
 				}
-				file.Content = content
-				files = append(files, file)
-				continue
-			}
 
-			if fileStatus.Staging == git.Added {
-				file.Status = StatusAdded
-			} else if fileStatus.Staging == git.Modified || fileStatus.Worktree == git.Modified {
-				file.Status = StatusModified
-			} else {
-				continue
-			}
+				file := File{
+					Path:    c.path,
+					Content: content,
+					Status:  c.fileStatus,
+				}
 
-			content, err := os.ReadFile(filePath)
+				if c.fileStatus == StatusModified {
+					diffRanges, err := getAddedLineRanges(repo, c.path)
+					if err != nil {
+						errs[i] = fmt.Errorf("failed to get diff ranges for %s: %w", c.path, err)
+						return
+					}
+					file.DiffRanges = diffRanges
+				}
+
+				files[i] = file
+			}(i, c)
+		}
+		wg.Wait()
+
+		for _, err := range errs {
 			if err != nil {
-				return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
+				return nil, err
 			}
-			file.Content = content
-
-			diffRanges, err := getAddedLineRanges(repo, filePath)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get diff ranges for %s: %w", filePath, err)
-			}
-			file.DiffRanges = diffRanges
-
-			files = append(files, file)
 		}
 
-		return files, nil
+		// Strip zero-value slots (candidates that errored and wrote nothing).
+		var result []File
+		for _, f := range files {
+			if f.Path != "" {
+				result = append(result, f)
+			}
+		}
+
+		return result, nil
 	}, nil
 }

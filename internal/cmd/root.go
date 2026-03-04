@@ -12,7 +12,7 @@ import (
 func buildLongDescription() string {
 	langs := languages.GetSupportedLanguageNames()
 	return fmt.Sprintf(`WALL-E scans your codebase for comments and compacts them into oblivion.
-By default it only trashes new comments.
+By default it only inspects new comments in uncommitted working-tree changes.
 
 Supported languages:
   %s`, strings.Join(langs, ", "))
@@ -29,9 +29,4 @@ func Execute() {
 	if err != nil {
 		os.Exit(1)
 	}
-}
-
-func init() {
-
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

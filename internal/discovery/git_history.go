@@ -3,7 +3,6 @@ package discovery
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
@@ -11,76 +10,28 @@ import (
 	"github.com/go-git/go-git/v5/utils/merkletrie"
 )
 
-func FromGitHistory(rootPath string, baseCommit string, targetCommit string) (Collect, error) {
-
+// FromGitHistory returns a Collect that discovers files changed between two
+// commits. baseCommit must be an ancestor of targetCommit. Both are resolved
+// as git revisions (SHA, tag, branch name, etc.).
+func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) {
 	repo, err := git.PlainOpenWithOptions(rootPath, &git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
 		return nil, errors.New("no git repository found (is this directory in a git repo?)")
 	}
 
 	return func() ([]File, error) {
-
-		err := ValidateCommitOrder(baseCommit, targetCommit)
-		if err != nil {
+		if err := ValidateCommitOrder(repo, baseCommit, targetCommit); err != nil {
 			return nil, err
 		}
 
-		var baseTree *object.Tree
-		if baseCommit == "" {
-			head, err := repo.Head()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get HEAD: %w", err)
-			}
-			baseCommitObj, err := repo.CommitObject(head.Hash())
-			if err != nil {
-				return nil, fmt.Errorf("failed to get HEAD commit: %w", err)
-			}
-			baseTree, err = baseCommitObj.Tree()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get base tree: %w", err)
-			}
-		} else {
-			baseHash, err := repo.ResolveRevision(plumbing.Revision(baseCommit))
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve base commit %s: %w", baseCommit, err)
-			}
-			baseCommitObj, err := repo.CommitObject(*baseHash)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get base commit: %w", err)
-			}
-			baseTree, err = baseCommitObj.Tree()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get base tree: %w", err)
-			}
+		baseTree, err := resolveTree(repo, baseCommit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve base tree: %w", err)
 		}
 
-		var targetTree *object.Tree
-		if targetCommit == "" {
-			head, err := repo.Head()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get HEAD: %w", err)
-			}
-			targetCommitObj, err := repo.CommitObject(head.Hash())
-			if err != nil {
-				return nil, fmt.Errorf("failed to get HEAD commit: %w", err)
-			}
-			targetTree, err = targetCommitObj.Tree()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get target tree: %w", err)
-			}
-		} else {
-			targetHash, err := repo.ResolveRevision(plumbing.Revision(targetCommit))
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve target commit %s: %w", targetCommit, err)
-			}
-			targetCommitObj, err := repo.CommitObject(*targetHash)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get target commit: %w", err)
-			}
-			targetTree, err = targetCommitObj.Tree()
-			if err != nil {
-				return nil, fmt.Errorf("failed to get target tree: %w", err)
-			}
+		targetTree, err := resolveTree(repo, targetCommit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve target tree: %w", err)
 		}
 
 		changes, err := baseTree.Diff(targetTree)
@@ -89,7 +40,6 @@ func FromGitHistory(rootPath string, baseCommit string, targetCommit string) (Co
 		}
 
 		var files []File
-
 		for _, change := range changes {
 			action, err := change.Action()
 			if err != nil {
@@ -109,7 +59,7 @@ func FromGitHistory(rootPath string, baseCommit string, targetCommit string) (Co
 				continue
 			}
 
-			file, err := processTreeFile(toFile, action, baseTree)
+			file, err := fileFromTreeChange(toFile, action, baseTree)
 			if err != nil {
 				return nil, err
 			}
@@ -123,11 +73,10 @@ func FromGitHistory(rootPath string, baseCommit string, targetCommit string) (Co
 	}, nil
 }
 
-func processTreeFile(toFile *object.File, action merkletrie.Action, baseTree *object.Tree) (*File, error) {
-
-	file := &File{
-		Path: toFile.Name,
-	}
+// fileFromTreeChange builds a File from a tree-sitter change entry.
+// It always computes diff ranges (StatusAdded files get an empty base).
+func fileFromTreeChange(toFile *object.File, action merkletrie.Action, baseTree *object.Tree) (*File, error) {
+	file := &File{Path: toFile.Name}
 
 	switch action {
 	case merkletrie.Insert:
@@ -146,8 +95,7 @@ func processTreeFile(toFile *object.File, action merkletrie.Action, baseTree *ob
 
 	var oldContent string
 	if baseTree != nil {
-		baseFile, err := baseTree.File(toFile.Name)
-		if err == nil {
+		if baseFile, err := baseTree.File(toFile.Name); err == nil {
 			oldContent, _ = baseFile.Contents()
 		}
 	}
@@ -156,17 +104,42 @@ func processTreeFile(toFile *object.File, action merkletrie.Action, baseTree *ob
 	return file, nil
 }
 
-func ValidateCommitOrder(baseCommit, targetCommit string) error {
-	currentDir, err := os.Getwd()
-	if err != nil {
-		return err
+// resolveTree returns the git tree for a given revision string.
+// If revision is empty it falls back to HEAD.
+func resolveTree(repo *git.Repository, revision string) (*object.Tree, error) {
+	var hash *plumbing.Hash
+
+	if revision == "" {
+		head, err := repo.Head()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get HEAD: %w", err)
+		}
+		h := head.Hash()
+		hash = &h
+	} else {
+		h, err := repo.ResolveRevision(plumbing.Revision(revision))
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve revision %s: %w", revision, err)
+		}
+		hash = h
 	}
 
-	repo, err := git.PlainOpenWithOptions(currentDir, &git.PlainOpenOptions{DetectDotGit: true})
+	commitObj, err := repo.CommitObject(*hash)
 	if err != nil {
-		return errors.New("no git repository found")
+		return nil, fmt.Errorf("failed to get commit object: %w", err)
 	}
 
+	tree, err := commitObj.Tree()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tree: %w", err)
+	}
+
+	return tree, nil
+}
+
+// ValidateCommitOrder checks that baseCommit is an ancestor of targetCommit.
+// An opened *git.Repository is passed in to avoid re-opening from disk.
+func ValidateCommitOrder(repo *git.Repository, baseCommit, targetCommit string) error {
 	baseHash, err := repo.ResolveRevision(plumbing.Revision(baseCommit))
 	if err != nil {
 		return fmt.Errorf("failed to resolve base commit %s: %w", baseCommit, err)
@@ -197,7 +170,7 @@ func ValidateCommitOrder(baseCommit, targetCommit string) error {
 	}
 
 	if !isAncestor {
-		return fmt.Errorf("target commit is earlier than base commit - target must be later than or equal to base")
+		return fmt.Errorf("target commit %s is not a descendant of base commit %s", targetCommit, baseCommit)
 	}
 
 	return nil

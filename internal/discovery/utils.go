@@ -7,6 +7,18 @@ import (
 	"github.com/go-git/go-git/v5"
 )
 
+// getRepoRoot returns the absolute path to the root of the git working tree.
+func getRepoRoot(repo *git.Repository) (string, error) {
+	worktree, err := repo.Worktree()
+	if err != nil {
+		return "", fmt.Errorf("failed to get worktree: %w", err)
+	}
+	return worktree.Filesystem.Root(), nil
+}
+
+// getAddedLineRanges computes which lines in filePath are new relative to HEAD.
+// Returns nil ranges (not an error) when the file does not exist in HEAD — the
+// caller should then treat the file as fully added.
 func getAddedLineRanges(repo *git.Repository, filePath string) ([]LineRange, error) {
 	head, err := repo.Head()
 	if err != nil {
@@ -15,32 +27,35 @@ func getAddedLineRanges(repo *git.Repository, filePath string) ([]LineRange, err
 
 	headCommit, err := repo.CommitObject(head.Hash())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get head commit: %w", err)
+		return nil, fmt.Errorf("failed to get HEAD commit: %w", err)
 	}
 
 	headTree, err := headCommit.Tree()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get head tree: %w", err)
+		return nil, fmt.Errorf("failed to get HEAD tree: %w", err)
 	}
 
 	headFile, err := headTree.File(filePath)
 	if err != nil {
+		// File is new — no baseline to diff against.
 		return nil, nil
 	}
 
 	headContent, err := headFile.Contents()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read head file content: %w", err)
+		return nil, fmt.Errorf("failed to read HEAD content for %s: %w", filePath, err)
 	}
 
 	currentContent, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read current file: %w", err)
+		return nil, fmt.Errorf("failed to read current file %s: %w", filePath, err)
 	}
 
 	return calculateAddedRanges(headContent, string(currentContent)), nil
 }
 
+// calculateAddedRanges returns line ranges that are present in newContent but
+// not in oldContent. Uses LCS to identify unchanged lines.
 func calculateAddedRanges(oldContent, newContent string) []LineRange {
 	oldLines := splitLines(oldContent)
 	newLines := splitLines(newContent)
