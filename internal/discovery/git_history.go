@@ -19,31 +19,31 @@ func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) 
 		return nil, errors.New("no git repository found (is this directory in a git repo?)")
 	}
 
-	return func() ([]File, error) {
+	return func() ([]File, []Warning, error) {
 		if err := ValidateCommitOrder(repo, baseCommit, targetCommit); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 
 		baseTree, err := resolveTree(repo, baseCommit)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve base tree: %w", err)
+			return nil, nil, fmt.Errorf("failed to resolve base tree: %w", err)
 		}
 
 		targetTree, err := resolveTree(repo, targetCommit)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve target tree: %w", err)
+			return nil, nil, fmt.Errorf("failed to resolve target tree: %w", err)
 		}
 
 		changes, err := baseTree.Diff(targetTree)
 		if err != nil {
-			return nil, fmt.Errorf("failed to compute diff: %w", err)
+			return nil, nil, fmt.Errorf("failed to compute diff: %w", err)
 		}
 
 		var files []File
 		for _, change := range changes {
 			action, err := change.Action()
 			if err != nil {
-				return nil, fmt.Errorf("failed to get change action: %w", err)
+				return nil, nil, fmt.Errorf("failed to get change action: %w", err)
 			}
 
 			if action == merkletrie.Delete {
@@ -52,7 +52,7 @@ func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) 
 
 			_, toFile, err := change.Files()
 			if err != nil {
-				return nil, fmt.Errorf("failed to get change files: %w", err)
+				return nil, nil, fmt.Errorf("failed to get change files: %w", err)
 			}
 
 			if toFile == nil {
@@ -61,7 +61,7 @@ func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) 
 
 			file, err := fileFromTreeChange(toFile, action, baseTree)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 
 			if file != nil {
@@ -69,7 +69,7 @@ func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) 
 			}
 		}
 
-		return files, nil
+		return files, nil, nil
 	}, nil
 }
 

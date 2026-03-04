@@ -57,7 +57,7 @@ func runFix(paths []string) {
 		return
 	}
 
-	comments, err := pipeline.ScanPipeline(pipeline.RunConfig{
+	result, err := pipeline.ScanPipeline(pipeline.RunConfig{
 		Collect: collect,
 		Filters: filters,
 	})
@@ -66,20 +66,24 @@ func runFix(paths []string) {
 		return
 	}
 
-	if len(comments) == 0 {
+	for _, w := range result.Warnings {
+		fmt.Printf("Warning: %s\n", w)
+	}
+
+	if len(result.Comments) == 0 {
 		fmt.Println("No comments found.")
 		return
 	}
 
 	// Report what was found before removal.
-	fileOrder, _ := printComments(comments, fixVerbose)
+	fileOrder, _ := printComments(result.Comments, fixVerbose)
 
-	if err := pipeline.TrashPipeline(comments); err != nil {
+	if err := pipeline.TrashPipeline(result.Comments); err != nil {
 		fmt.Printf("Error removing comments: %v\n", err)
 		return
 	}
 
-	fmt.Printf("\nRemoved %d comment(s) from %d file(s)\n", len(comments), len(fileOrder))
+	fmt.Printf("\nRemoved %d comment(s) from %d file(s)\n", len(result.Comments), len(fileOrder))
 }
 
 func init() {

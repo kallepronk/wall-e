@@ -18,15 +18,15 @@ func FromGitDiff(rootPath string) (Collect, error) {
 		return nil, fmt.Errorf("no git repository found (is this directory in a git repo?): %w", err)
 	}
 
-	return func() ([]File, error) {
+	return func() ([]File, []Warning, error) {
 		worktree, err := repo.Worktree()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get worktree: %w", err)
+			return nil, nil, fmt.Errorf("failed to get worktree: %w", err)
 		}
 
 		status, err := worktree.Status()
 		if err != nil {
-			return nil, fmt.Errorf("failed to get worktree status: %w", err)
+			return nil, nil, fmt.Errorf("failed to get worktree status: %w", err)
 		}
 
 		// Collect candidates before spawning goroutines.
@@ -91,7 +91,7 @@ func FromGitDiff(rootPath string) (Collect, error) {
 
 		for _, err := range errs {
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 		}
 
@@ -103,6 +103,6 @@ func FromGitDiff(rootPath string) (Collect, error) {
 			}
 		}
 
-		return result, nil
+		return result, nil, nil
 	}, nil
 }

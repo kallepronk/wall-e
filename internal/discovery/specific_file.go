@@ -13,6 +13,9 @@ import (
 // When scanWhole is true every line is in scope (StatusAdded); otherwise only
 // lines that differ from HEAD are in scope (StatusModified + DiffRanges).
 //
+// Paths that cannot be read (missing, symlinks pointing to directories, etc.)
+// are skipped and reported as warnings rather than aborting the entire run.
+//
 // Reading each file and computing diff ranges are independent operations, so
 // all files are processed concurrently.
 func FromSpecificFile(rootPath string, filePaths []string, scanWhole bool) (Collect, error) {
@@ -21,20 +24,15 @@ func FromSpecificFile(rootPath string, filePaths []string, scanWhole bool) (Coll
 		return nil, errors.New("no git repository found (is this directory in a git repo?)")
 	}
 
-	for _, filePath := range filePaths {
-		info, err := os.Stat(filePath)
-		if err != nil {
-			return nil, fmt.Errorf("%s does not exist", filePath)
+	return func() ([]File, []Warning, error) {
+		type result struct {
+			file    File
+			warning *Warning
+			err     error
+			ok      bool
 		}
-		if info.IsDir() {
-			return nil, fmt.Errorf("%s is a directory, not a file", filePath)
-		}
-	}
 
-	return func() ([]File, error) {
-		// Fan-out: read + optionally diff each file concurrently.
-		files := make([]File, len(filePaths))
-		errs := make([]error, len(filePaths))
+		results := make([]result, len(filePaths))
 
 		var wg sync.WaitGroup
 		for i, filePath := range filePaths {
@@ -42,9 +40,36 @@ func FromSpecificFile(rootPath string, filePaths []string, scanWhole bool) (Coll
 			go func(i int, filePath string) {
 				defer wg.Done()
 
+				// Resolve symlinks so we can detect symlinks-to-directories.
+				resolved, err := os.Stat(filePath)
+				if err != nil {
+					results[i] = result{warning: &Warning{
+						Path:    filePath,
+						Message: fmt.Sprintf("skipped: %v", err),
+					}}
+					return
+				}
+				if resolved.IsDir() {
+					results[i] = result{warning: &Warning{
+						Path:    filePath,
+						Message: "skipped: path is a directory, not a file",
+					}}
+					return
+				}
+				if !resolved.Mode().IsRegular() {
+					results[i] = result{warning: &Warning{
+						Path:    filePath,
+						Message: fmt.Sprintf("skipped: not a regular file (mode %s)", resolved.Mode()),
+					}}
+					return
+				}
+
 				content, err := os.ReadFile(filePath)
 				if err != nil {
-					errs[i] = fmt.Errorf("failed to read file %s: %w", filePath, err)
+					results[i] = result{warning: &Warning{
+						Path:    filePath,
+						Message: fmt.Sprintf("skipped: %v", err),
+					}}
 					return
 				}
 
@@ -59,23 +84,35 @@ func FromSpecificFile(rootPath string, filePaths []string, scanWhole bool) (Coll
 					file.Status = StatusModified
 					diffRanges, err := getAddedLineRanges(repo, filePath)
 					if err != nil {
-						errs[i] = fmt.Errorf("failed to get diff ranges for %s: %w", filePath, err)
+						results[i] = result{warning: &Warning{
+							Path:    filePath,
+							Message: fmt.Sprintf("skipped: failed to compute diff ranges: %v", err),
+						}}
 						return
 					}
 					file.DiffRanges = diffRanges
 				}
 
-				files[i] = file
+				results[i] = result{file: file, ok: true}
 			}(i, filePath)
 		}
 		wg.Wait()
 
-		for _, err := range errs {
-			if err != nil {
-				return nil, err
+		var files []File
+		var warnings []Warning
+		for _, r := range results {
+			if r.err != nil {
+				return nil, nil, r.err
+			}
+			if r.warning != nil {
+				warnings = append(warnings, *r.warning)
+				continue
+			}
+			if r.ok {
+				files = append(files, r.file)
 			}
 		}
 
-		return files, nil
+		return files, warnings, nil
 	}, nil
 }
