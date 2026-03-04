@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"walle/internal/comment"
 	"walle/internal/discovery"
 	"walle/internal/filter"
 )
@@ -72,6 +74,42 @@ func buildCollect(
 	}
 
 	return collect, filters, nil
+}
+
+// printComments groups comments by file (preserving first-appearance order)
+// and prints them. When verbose is true each individual comment is shown
+// beneath its file header with a tree-style prefix (├── / └──).
+// It returns the ordered list of unique file paths and the per-file map so
+// the caller can use them (e.g. for a total line).
+func printComments(comments []comment.Comment, verbose bool) ([]string, map[string][]int) {
+	byFile := make(map[string][]int)
+	var fileOrder []string
+	for i, c := range comments {
+		if _, seen := byFile[c.FilePath]; !seen {
+			fileOrder = append(fileOrder, c.FilePath)
+		}
+		byFile[c.FilePath] = append(byFile[c.FilePath], i)
+	}
+
+	for _, file := range fileOrder {
+		indices := byFile[file]
+		fmt.Printf("Found %d comment(s) in %s\n", len(indices), file)
+		if verbose {
+			for i, idx := range indices {
+				c := comments[idx]
+				prefix := "├──"
+				if i == len(indices)-1 {
+					prefix = "└──"
+				}
+				fmt.Printf("  %s %s:%d  %s\n",
+					prefix, c.FilePath, c.Line,
+					strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "),
+				)
+			}
+		}
+	}
+
+	return fileOrder, byFile
 }
 
 // findAllFiles walks root and returns paths for every non-directory entry.

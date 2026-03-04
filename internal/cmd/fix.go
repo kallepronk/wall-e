@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 	"walle/internal/pipeline"
 
 	"github.com/spf13/cobra"
@@ -73,28 +72,14 @@ func runFix(paths []string) {
 	}
 
 	// Report what was found before removal.
-	byFile := make(map[string]int)
-	for _, c := range comments {
-		byFile[c.FilePath]++
-	}
-	for file, count := range byFile {
-		fmt.Printf("Found %d comment(s) in %s\n", count, file)
-	}
-	if fixVerbose {
-		for _, c := range comments {
-			fmt.Printf("  %s:%d  %s\n",
-				c.FilePath, c.Line,
-				strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "),
-			)
-		}
-	}
+	fileOrder, _ := printComments(comments, fixVerbose)
 
 	if err := pipeline.TrashPipeline(comments); err != nil {
 		fmt.Printf("Error removing comments: %v\n", err)
 		return
 	}
 
-	fmt.Printf("\nRemoved %d comment(s) from %d file(s)\n", len(comments), len(byFile))
+	fmt.Printf("\nRemoved %d comment(s) from %d file(s)\n", len(comments), len(fileOrder))
 }
 
 func init() {

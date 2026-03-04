@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"strings"
 	"walle/internal/pipeline"
 
 	"github.com/spf13/cobra"
@@ -67,34 +66,10 @@ func runScan(paths []string) {
 	}
 
 	// Group comments by file, preserving order of first appearance.
-	byFile := make(map[string][]int)
-	var fileOrder []string
-	for i, c := range comments {
-		if _, seen := byFile[c.FilePath]; !seen {
-			fileOrder = append(fileOrder, c.FilePath)
-		}
-		byFile[c.FilePath] = append(byFile[c.FilePath], i)
-	}
+	fileOrder, byFile := printComments(comments, scanVerbose)
 
-	for _, file := range fileOrder {
-		indices := byFile[file]
-		fmt.Printf("Found %d comment(s) in %s\n", len(indices), file)
-		if scanVerbose {
-			for i, idx := range indices {
-				c := comments[idx]
-				prefix := "├──"
-				if i == len(indices)-1 {
-					prefix = "└──"
-				}
-				fmt.Printf("  %s %s:%d  %s\n",
-					prefix, c.FilePath, c.Line,
-					strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "),
-				)
-			}
-		}
-	}
-
-	fmt.Printf("\nTotal: %d comment(s) in %d file(s)\n", len(comments), len(byFile))
+	fmt.Printf("\nTotal: %d comment(s) in %d file(s)\n", len(comments), len(fileOrder))
+	_ = byFile
 }
 
 func init() {
