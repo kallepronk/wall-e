@@ -66,21 +66,31 @@ func runScan(paths []string) {
 		return
 	}
 
-	// Group by file for readable output.
-	byFile := make(map[string]int)
-	for _, c := range comments {
-		byFile[c.FilePath]++
-	}
-	for file, count := range byFile {
-		fmt.Printf("Found %d comment(s) in %s\n", count, file)
+	// Group comments by file, preserving order of first appearance.
+	byFile := make(map[string][]int)
+	var fileOrder []string
+	for i, c := range comments {
+		if _, seen := byFile[c.FilePath]; !seen {
+			fileOrder = append(fileOrder, c.FilePath)
+		}
+		byFile[c.FilePath] = append(byFile[c.FilePath], i)
 	}
 
-	if scanVerbose {
-		for _, c := range comments {
-			fmt.Printf("  %s:%d  %s\n",
-				c.FilePath, c.Line,
-				strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "),
-			)
+	for _, file := range fileOrder {
+		indices := byFile[file]
+		fmt.Printf("Found %d comment(s) in %s\n", len(indices), file)
+		if scanVerbose {
+			for i, idx := range indices {
+				c := comments[idx]
+				prefix := "├──"
+				if i == len(indices)-1 {
+					prefix = "└──"
+				}
+				fmt.Printf("  %s %s:%d  %s\n",
+					prefix, c.FilePath, c.Line,
+					strings.ReplaceAll(strings.ReplaceAll(c.Text, "\n", " "), "\r", " "),
+				)
+			}
 		}
 	}
 
