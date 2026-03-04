@@ -12,19 +12,28 @@ import (
 //  2. Apply each filter in order.
 //  3. Scan each surviving file for comments concurrently.
 //
-// It returns the full list of found comments. Printing and formatting are the
+// It returns the full list of found comments together with any non-fatal
+// warnings from file discovery. Printing and formatting are the
 // responsibility of the caller (cmd layer).
-func ScanPipeline(cfg RunConfig) ([]comment.Comment, error) {
-	files, err := cfg.Collect()
+func ScanPipeline(cfg RunConfig) (ScanResult, error) {
+	files, warnings, err := cfg.Collect()
 	if err != nil {
-		return nil, fmt.Errorf("file discovery failed: %w", err)
+		return ScanResult{}, fmt.Errorf("file discovery failed: %w", err)
 	}
 
 	for _, f := range cfg.Filters {
 		files = f.Apply(files)
 	}
 
-	return scanFiles(files)
+	comments, err := scanFiles(files)
+	if err != nil {
+		return ScanResult{}, err
+	}
+
+	return ScanResult{
+		Comments: comments,
+		Warnings: warnings,
+	}, nil
 }
 
 // scanFiles fans out comment scanning across all files concurrently.

@@ -51,7 +51,7 @@ func runScan(paths []string) {
 		return
 	}
 
-	comments, err := pipeline.ScanPipeline(pipeline.RunConfig{
+	result, err := pipeline.ScanPipeline(pipeline.RunConfig{
 		Collect: collect,
 		Filters: filters,
 	})
@@ -60,15 +60,19 @@ func runScan(paths []string) {
 		return
 	}
 
-	if len(comments) == 0 {
+	for _, w := range result.Warnings {
+		fmt.Printf("Warning: %s\n", w)
+	}
+
+	if len(result.Comments) == 0 {
 		fmt.Println("No comments found.")
 		return
 	}
 
 	// Group comments by file, preserving order of first appearance.
-	fileOrder, byFile := printComments(comments, scanVerbose)
+	fileOrder, byFile := printComments(result.Comments, scanVerbose)
 
-	fmt.Printf("\nTotal: %d comment(s) in %d file(s)\n", len(comments), len(fileOrder))
+	fmt.Printf("\nTotal: %d comment(s) in %d file(s)\n", len(result.Comments), len(fileOrder))
 	_ = byFile
 }
 
