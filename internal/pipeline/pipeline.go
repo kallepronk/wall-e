@@ -13,8 +13,9 @@ import (
 //  3. Scan each surviving file for comments concurrently.
 //
 // It returns the full list of found comments together with any non-fatal
-// warnings from file discovery. Printing and formatting are the
-// responsibility of the caller (cmd layer).
+// warnings from file discovery and scanning. A single file that cannot be
+// read or parsed is skipped and reported; it never aborts the run.
+// Printing and formatting are the responsibility of the caller (cmd layer).
 func ScanPipeline(cfg RunConfig) (ScanResult, error) {
 	files, warnings, err := cfg.Collect()
 	if err != nil {
@@ -25,23 +26,22 @@ func ScanPipeline(cfg RunConfig) (ScanResult, error) {
 		files = f.Apply(files)
 	}
 
-	comments, err := scanFiles(files)
-	if err != nil {
-		return ScanResult{}, err
-	}
+	comments, scanWarnings := scanFiles(files)
 
 	return ScanResult{
 		Comments: comments,
-		Warnings: warnings,
+		Warnings: append(warnings, scanWarnings...),
 	}, nil
 }
 
 // scanFiles fans out comment scanning across all files concurrently.
-// Each file is parsed and scanned by an independent goroutine.
-func scanFiles(files []discovery.File) ([]comment.Comment, error) {
+// Each file is parsed and scanned by an independent goroutine. Per-file
+// scan failures are returned as warnings so one bad file does not hide
+// results from the others.
+func scanFiles(files []discovery.File) ([]comment.Comment, []discovery.Warning) {
 	type result struct {
 		comments []comment.Comment
-		err      error
+		warning  *discovery.Warning
 	}
 
 	results := make([]result, len(files))
@@ -59,7 +59,10 @@ func scanFiles(files []discovery.File) ([]comment.Comment, error) {
 			}
 			comments, err := scanner.Scan(file)
 			if err != nil {
-				results[i] = result{err: fmt.Errorf("failed to scan %s: %w", file.Path, err)}
+				results[i] = result{warning: &discovery.Warning{
+					Path:    file.Path,
+					Message: fmt.Sprintf("skipped: failed to scan: %v", err),
+				}}
 				return
 			}
 			results[i] = result{comments: comments}
@@ -68,14 +71,16 @@ func scanFiles(files []discovery.File) ([]comment.Comment, error) {
 	wg.Wait()
 
 	var all []comment.Comment
+	var warnings []discovery.Warning
 	for _, r := range results {
-		if r.err != nil {
-			return nil, r.err
+		if r.warning != nil {
+			warnings = append(warnings, *r.warning)
+			continue
 		}
 		all = append(all, r.comments...)
 	}
 
-	return all, nil
+	return all, warnings
 }
 
 // TrashPipeline removes the given comments from disk. Files are processed

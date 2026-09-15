@@ -13,6 +13,9 @@ import (
 // FromGitHistory returns a Collect that discovers files changed between two
 // commits. baseCommit must be an ancestor of targetCommit. Both are resolved
 // as git revisions (SHA, tag, branch name, etc.).
+//
+// Individual changes that cannot be read are skipped and reported as warnings
+// rather than aborting the entire run.
 func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) {
 	repo, err := git.PlainOpenWithOptions(rootPath, &git.PlainOpenOptions{DetectDotGit: true})
 	if err != nil {
@@ -40,10 +43,12 @@ func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) 
 		}
 
 		var files []File
+		var warnings []Warning
 		for _, change := range changes {
 			action, err := change.Action()
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get change action: %w", err)
+				warnings = append(warnings, Warning{Path: change.String(), Message: fmt.Sprintf("skipped: failed to get change action: %v", err)})
+				continue
 			}
 
 			if action == merkletrie.Delete {
@@ -52,7 +57,8 @@ func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) 
 
 			_, toFile, err := change.Files()
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get change files: %w", err)
+				warnings = append(warnings, Warning{Path: change.String(), Message: fmt.Sprintf("skipped: failed to get change files: %v", err)})
+				continue
 			}
 
 			if toFile == nil {
@@ -61,7 +67,8 @@ func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) 
 
 			file, err := fileFromTreeChange(toFile, action, baseTree)
 			if err != nil {
-				return nil, nil, err
+				warnings = append(warnings, Warning{Path: toFile.Name, Message: fmt.Sprintf("skipped: %v", err)})
+				continue
 			}
 
 			if file != nil {
@@ -69,7 +76,7 @@ func FromGitHistory(rootPath, baseCommit, targetCommit string) (Collect, error) 
 			}
 		}
 
-		return files, nil, nil
+		return files, warnings, nil
 	}, nil
 }
 
