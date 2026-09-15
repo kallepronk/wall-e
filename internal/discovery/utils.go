@@ -3,6 +3,7 @@ package discovery
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/go-git/go-git/v5"
 )
@@ -16,10 +17,22 @@ func getRepoRoot(repo *git.Repository) (string, error) {
 	return worktree.Filesystem.Root(), nil
 }
 
-// getAddedLineRanges computes which lines in filePath are new relative to HEAD.
+// getAddedLineRanges computes which lines in absPath are new relative to HEAD.
+// absPath must be absolute; it is resolved against the repo root to look up the
+// HEAD version, so this works when the process cwd is a subdirectory of the repo.
 // Returns nil ranges (not an error) when the file does not exist in HEAD — the
 // caller should then treat the file as fully added.
-func getAddedLineRanges(repo *git.Repository, filePath string) ([]LineRange, error) {
+func getAddedLineRanges(repo *git.Repository, absPath string) ([]LineRange, error) {
+	root, err := getRepoRoot(repo)
+	if err != nil {
+		return nil, err
+	}
+	relPath, err := filepath.Rel(root, absPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to relativise %s to repo root: %w", absPath, err)
+	}
+	relPath = filepath.ToSlash(relPath)
+
 	head, err := repo.Head()
 	if err != nil {
 		return nil, nil
@@ -35,7 +48,7 @@ func getAddedLineRanges(repo *git.Repository, filePath string) ([]LineRange, err
 		return nil, fmt.Errorf("failed to get HEAD tree: %w", err)
 	}
 
-	headFile, err := headTree.File(filePath)
+	headFile, err := headTree.File(relPath)
 	if err != nil {
 		// File is new — no baseline to diff against.
 		return nil, nil
@@ -43,12 +56,12 @@ func getAddedLineRanges(repo *git.Repository, filePath string) ([]LineRange, err
 
 	headContent, err := headFile.Contents()
 	if err != nil {
-		return nil, fmt.Errorf("failed to read HEAD content for %s: %w", filePath, err)
+		return nil, fmt.Errorf("failed to read HEAD content for %s: %w", relPath, err)
 	}
 
-	currentContent, err := os.ReadFile(filePath)
+	currentContent, err := os.ReadFile(absPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read current file %s: %w", filePath, err)
+		return nil, fmt.Errorf("failed to read current file %s: %w", absPath, err)
 	}
 
 	return calculateAddedRanges(headContent, string(currentContent)), nil

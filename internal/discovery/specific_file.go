@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/go-git/go-git/v5"
@@ -82,7 +83,10 @@ func FromSpecificFile(rootPath string, filePaths []string, scanWhole bool) (Coll
 					file.Status = StatusAdded
 				} else {
 					file.Status = StatusModified
-					diffRanges, err := getAddedLineRanges(repo, filePath)
+					absPath, err := filepath.Abs(filePath)
+					if err == nil {
+						file.DiffRanges, err = getAddedLineRanges(repo, absPath)
+					}
 					if err != nil {
 						results[i] = result{warning: &Warning{
 							Path:    filePath,
@@ -90,7 +94,6 @@ func FromSpecificFile(rootPath string, filePaths []string, scanWhole bool) (Coll
 						}}
 						return
 					}
-					file.DiffRanges = diffRanges
 				}
 
 				results[i] = result{file: file, ok: true}
